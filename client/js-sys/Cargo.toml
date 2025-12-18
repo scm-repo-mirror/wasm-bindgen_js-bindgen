@@ -7,5 +7,8 @@ rust-version = "1.59"
 [features]
 std = []
 
+[build-dependencies]
+js-bindgen-shared = { path = "../shared" }
+
 [dependencies]
 js-bindgen = { path = "../js-bindgen" }

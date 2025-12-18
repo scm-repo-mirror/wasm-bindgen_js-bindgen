@@ -4,6 +4,9 @@ version = "0.0.0"
 edition = "2021"
 rust-version = "1.59"
 
+[build-dependencies]
+js-bindgen-shared = { path = "../shared" }
+
 [dependencies]
 js-bindgen = { path = "../js-bindgen" }
 js-sys = { path = "../js-sys" }

@@ -1,0 +1,1 @@
+- We have a custom `LocalKey` replica for non-atomic or non-std builds. It differs because its methods don't take a `'static` lifetime. It would probably be easiest to just align actual Std's `LocalKey` unsafely to not require `'static`.
