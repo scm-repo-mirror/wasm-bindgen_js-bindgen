@@ -1,0 +1,5 @@
+[target.'cfg(all(target_family = "wasm", any(target_os = "none", target_os = "unknown")))']
+linker = "../client/.cargo/linker"
+
+[env]
+JS_BINDGEN_CACHE_DISABLE_CHECK = "1"

@@ -1,11 +1,11 @@
 [package]
-name = "web-sys"
-version = "0.0.0"
 edition = "2021"
+name = "web-sys"
 rust-version = "1.59"
+version = "0.0.0"
 
 [build-dependencies]
-js-bindgen-shared = { path = "../shared" }
+js-bindgen-bootstrap = { path = "../bootstrap" }
 
 [dependencies]
 js-bindgen = { path = "../js-bindgen" }

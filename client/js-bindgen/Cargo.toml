@@ -1,8 +1,17 @@
 [package]
-name = "js-bindgen"
-version = "0.0.0"
 edition = "2021"
+name = "js-bindgen"
 rust-version = "1.59"
+version = "0.0.0"
 
 [lib]
 proc-macro = true
+
+[target.'cfg(js_bindgen_bootstrap = "1")'.dependencies]
+ar_archive_writer = "0.5"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+sanitize-filename = "=0.7.0-beta"
+syn = { version = "2", default-features = false, features = ["parsing", "proc-macro"] }
+
+[lints]
+workspace = true

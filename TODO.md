@@ -1,1 +1,29 @@
+# Current
+
+- Generate Wasm64 archives.
+- JS caching proc-macro.
+- Linker JS generation.
+- Basic runner.
+- Proc-macros without caching.
+- Bindgen proc-macro.
+
+# High Priority
+
+- Find a way to prevent users from accidentally using the default linker.
+  Could be done by supplying an invalid object file that would be removed by our custom linker.
+- Resolve cached archives TODOs.
+- Version all names to make packages compatible with other versions of itself.
+- Embed crate version to make linker capable of detecting unsupported versions.
+- Evaluate `sanitize-filename` dependency.
+
+# Low Priority
+
+- Linker functionality should live in its own crate so a newer linker versions can support multiple versions.
 - We have a custom `LocalKey` replica for non-atomic or non-std builds. It differs because its methods don't take a `'static` lifetime. It would probably be easiest to just align actual Std's `LocalKey` unsafely to not require `'static`.
+- Support 64-bit `externref` tables. The default should remain 32-bit.
+  https://github.com/llvm/llvm-project/issues/172868
+- When we detect nightly, we should switch to `global_asm!` internally. However, this is awaiting a couple of bug fixes:
+  - On `wasm64` tables automatically use `i64` as the address type with no way to turn it off.
+    https://github.com/llvm/llvm-project/pull/173063#discussion_r2635871878
+  - `global_asm!` simply doesn't work with Wasm right now when using instructions that require target features.
+    https://github.com/rust-lang/rust/issues/113221

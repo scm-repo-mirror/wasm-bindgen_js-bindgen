@@ -1,0 +1,48 @@
+(module $basic-c8076c0831b4f91f.wasm
+  (type (;0;) (func (param externref)))
+  (type (;1;) (func))
+  (type (;2;) (func (param i32)))
+  (type (;3;) (func (param i32) (result externref)))
+  (import "web_sys" "console.log" (func $web_sys.import.console.log (;0;) (type 0)))
+  (import "js_sys" "const" (table (;0;) 0 externref))
+  (table (;1;) 0 externref)
+  (table (;2;) 1 1 funcref)
+  (memory (;0;) 16)
+  (global $__stack_pointer (;0;) (mut i32) i32.const 1048576)
+  (global (;1;) i32 i32.const 1048576)
+  (global (;2;) i32 i32.const 1048576)
+  (export "memory" (memory 0))
+  (export "foo" (func $foo))
+  (export "__data_end" (global 1))
+  (export "__heap_base" (global 2))
+  (func $foo (;1;) (type 1)
+    i32.const -1
+    call $web_sys.console.log
+  )
+  (func $web_sys.console.log (;2;) (type 2) (param i32)
+    local.get 0
+    call $js_sys.externref.get
+    call $web_sys.import.console.log
+  )
+  (func $js_sys.externref.get (;3;) (type 3) (param i32) (result externref)
+    local.get 0
+    i32.const 0
+    i32.ge_s
+    if (result externref) ;; label = @1
+      local.get 0
+      table.get 1
+    else
+      local.get 0
+      i32.const -1
+      i32.mul
+      i32.const 1
+      i32.sub
+      table.get 0
+    end
+  )
+  (@producers
+    (language "Rust" "")
+    (processed-by "rustc" "1.92.0 (ded5c06cf 2025-12-08)")
+  )
+  (@custom "target_features" (after code) "\08+\0bbulk-memory+\0fbulk-memory-opt+\16call-indirect-overlong+\0amultivalue+\0fmutable-globals+\13nontrapping-fptoint+\0freference-types+\08sign-ext")
+)
