@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{Error, Write};
 use std::path::Path;
 use std::process::{self, Command, Stdio};
 use std::{env, fs};
@@ -7,6 +7,13 @@ use wasm_encoder::{Module, RawSection, Section};
 use wasmparser::{Encoding, Parser, Payload};
 
 fn main() {
+	let arch = env::args()
+		.find_map(|a| {
+			a.strip_prefix("-m")
+				.filter(|a| !a.starts_with('='))
+				.map(str::to_owned)
+		})
+		.unwrap_or_else(|| String::from("wasm32"));
 	let mut asm_args = Vec::new();
 
 	for arg in env::args() {
@@ -33,7 +40,8 @@ fn main() {
 				}),
 				Payload::CustomSection(c) if c.name() == "js_bindgen.assembly" => {
 					for assembly in c.data().split(|b| b == &b'\0').filter(|a| !a.is_empty()) {
-						let asm_object = assembly_to_object(assembly);
+						let asm_object = assembly_to_object(&arch, assembly)
+							.expect("compiling ASM should be valid");
 
 						let asm_path =
 							object_path.with_added_extension(format!("asm.{asm_counter}.o"));
@@ -71,50 +79,52 @@ fn main() {
 	process::exit(status.code().unwrap_or(1));
 }
 
-fn assembly_to_object(assembly: &[u8]) -> Vec<u8> {
+fn assembly_to_object(arch: &str, assembly: &[u8]) -> Result<Vec<u8>, Error> {
 	let mut child = Command::new("llvm-mc")
-		.arg("-arch=wasm32")
+		.arg(format!("-arch={arch}"))
 		.arg("-mattr=+reference-types")
 		.arg("-filetype=obj")
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())
 		.stdin(Stdio::piped())
-		.spawn()
-		.expect("calling `llvm-mc` should succeed");
+		.spawn()?;
 
 	let stdin = child
 		.stdin
 		.as_mut()
-		.expect("`llvm-mc` process should have `stdin`");
-	stdin
-		.write_all(assembly)
-		.expect("copying to `llvm-mc`'s `stdin` should succeed");
+		.ok_or_else(|| Error::other("`llvm-mc` process should have `stdin`"))?;
+	stdin.write_all(assembly)?;
 
-	let output = child.wait_with_output().expect("`llvm-mc` should succeed");
+	let output = child.wait_with_output()?;
 
 	if output.status.success() {
-		output.stdout
+		Ok(output.stdout)
 	} else {
-		let mut error = format!("`llvm-mc` process failed with status: {}\n", output.status);
-
 		if !output.stdout.is_empty() {
-			error.push_str("\n------ llvm-mc stdout ------\n");
-			error.push_str(&String::from_utf8_lossy(&output.stdout));
+			eprintln!(
+				"------ llvm-mc stdout ------\n{}",
+				String::from_utf8_lossy(&output.stdout)
+			);
 
 			if !output.stdout.ends_with(b"\n") {
-				error.push('\n');
+				eprintln!();
 			}
 		}
 
 		if !output.stderr.is_empty() {
-			error.push_str("\n------ llvm-mc stderr ------\n");
-			error.push_str(&String::from_utf8_lossy(&output.stderr));
+			eprintln!(
+				"------ llvm-mc stderr ------\n{}",
+				String::from_utf8_lossy(&output.stderr)
+			);
 
 			if !output.stderr.ends_with(b"\n") {
-				error.push('\n');
+				eprintln!();
 			}
 		}
 
-		panic!("{error}");
+		Err(Error::other(format!(
+			"`llvm-mc` process failed with status: {}\n",
+			output.status
+		)))
 	}
 }

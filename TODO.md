@@ -4,11 +4,13 @@
 - Basic runner.
 - Proc-macros without caching.
 - Bindgen proc-macro.
+- Parse LLD CLI arguments via `tblgen` and `lld/wasm/Options.td`.
 
 # High Priority
 
 - Find a way to prevent users from accidentally using the default linker.
   Could be done by supplying an invalid object file that would be removed by our custom linker.
+- Also find a way to prevent users from accidentally using our linker with something else then Wasm.
 - Version all names to make packages compatible with other versions of itself.
 - Embed crate version to make linker capable of detecting unsupported versions.
 
