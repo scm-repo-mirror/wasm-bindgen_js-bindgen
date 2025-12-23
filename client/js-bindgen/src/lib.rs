@@ -36,6 +36,8 @@ fn embed_asm_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 		return Err(compile_error(span, "requires at least a string argument"));
 	}
 
+	assembly.push('\0');
+
 	Ok(TokenStream::from_iter([
 		TokenTree::Ident(Ident::new("const", span)),
 		TokenTree::Ident(Ident::new("_", span)),
@@ -80,8 +82,11 @@ fn parse_string_literal(span: Span, lit: &str) -> Result<&str, TokenStream> {
 		return Err(compile_error(span, "expecting a string literal"));
 	};
 
-	if stripped.contains('\\') {
-		return Err(compile_error(span, "backslashes are not supported"));
+	if stripped.contains(|c: char| ['\\', '\0'].contains(&c)) {
+		return Err(compile_error(
+			span,
+			"backslashes or null character are not supported",
+		));
 	}
 
 	Ok(stripped)

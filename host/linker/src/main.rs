@@ -7,7 +7,7 @@ use wasm_encoder::{Module, RawSection, Section};
 use wasmparser::{Encoding, Parser, Payload};
 
 fn main() {
-	//let asm_args = Vec::new();
+	let mut asm_args = Vec::new();
 
 	for arg in env::args() {
 		let object_path = if !arg.starts_with('-') && arg.ends_with(".o") {
@@ -15,6 +15,8 @@ fn main() {
 		} else {
 			continue;
 		};
+
+		let mut asm_counter = 0;
 
 		let input = fs::read(object_path).expect("object file should be readable");
 		let mut output = Vec::new();
@@ -30,8 +32,17 @@ fn main() {
 					}
 				}),
 				Payload::CustomSection(c) if c.name() == "js_bindgen.assembly" => {
-					assembly_to_object(c.data());
-					panic!("{:?}", object_path.parent());
+					for assembly in c.data().split(|b| b == &b'\0').filter(|a| !a.is_empty()) {
+						let asm_object = assembly_to_object(assembly);
+
+						let asm_path =
+							object_path.with_added_extension(format!("asm.{asm_counter}.o"));
+						asm_counter += 1;
+						fs::write(&asm_path, asm_object)
+							.expect("writing ASM object file should succeed");
+
+						asm_args.push(asm_path);
+					}
 				}
 				Payload::CodeSectionEntry(_) | Payload::End(_) => (),
 				_ => {
@@ -53,6 +64,7 @@ fn main() {
 
 	let status = Command::new("rust-lld")
 		.args(env::args_os().skip(1))
+		.args(asm_args)
 		.status()
 		.unwrap();
 
