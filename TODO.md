@@ -13,6 +13,10 @@
 - Also find a way to prevent users from accidentally using our linker with something else then Wasm.
 - Version all names to make packages compatible with other versions of itself.
 - Embed crate version to make linker capable of detecting unsupported versions.
+- Add tracking for ASM object files in the linker, so we don't re-generate them each time.
+- Evaluate the output folder of our ASM objet files. Some ideas:
+  - Store them next to the output file.
+  - Pass an environment variable from a `build.rs` pointing to the target folder and go from there.
 
 # Low Priority
 
@@ -25,3 +29,4 @@
     https://github.com/llvm/llvm-project/pull/173063#discussion_r2635871878
   - `global_asm!` simply doesn't work with Wasm right now when using instructions that require target features.
     https://github.com/rust-lang/rust/issues/113221
+- Can we remove custom sections in pre-processing by modifying `.rlib`s?
