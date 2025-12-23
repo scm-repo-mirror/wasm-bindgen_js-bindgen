@@ -47,8 +47,7 @@ impl<T: 'static> LocalKey<T> {
 	}
 }
 
-js_bindgen::cache_embed_asm!(
-	name = "externref",
+js_bindgen::embed_asm!(
 	"js_sys.externref.table:",
 	"    .tabletype js_sys.externref.table, externref",
 	"",

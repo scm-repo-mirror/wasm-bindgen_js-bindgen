@@ -2,3 +2,8 @@
 edition = "2024"
 name = "js-bindgen-linker"
 version = "0.0.0"
+
+[dependencies]
+wasmparser = { version = "0.243", default-features = false }
+wasm-encoder = { version = "0.243", default-features = false }
+tinyvec = "1"
