@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Display;
 
 use proc_macro::{Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree};
@@ -18,7 +19,7 @@ fn embed_asm_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 				let span = lit.span();
 				let lit = lit.to_string();
 				let string = parse_string_literal(span, &lit)?;
-				assembly.extend([string, "\n"]);
+				assembly.extend([string, Cow::Borrowed("\n")]);
 
 				match input.peek() {
 					Some(TokenTree::Punct(p)) if p.as_char() == ',' => {
@@ -77,19 +78,37 @@ fn embed_asm_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 	]))
 }
 
-fn parse_string_literal(span: Span, lit: &str) -> Result<&str, TokenStream> {
+fn parse_string_literal(span: Span, lit: &str) -> Result<Cow<'_, str>, TokenStream> {
+	// Strip starting and ending `"`.
 	let Some(stripped) = lit.strip_prefix('"').and_then(|lit| lit.strip_suffix('"')) else {
 		return Err(compile_error(span, "expecting a string literal"));
 	};
 
-	if stripped.contains(|c: char| ['\\', '\0'].contains(&c)) {
-		return Err(compile_error(
-			span,
-			"backslashes or null character are not supported",
-		));
+	// Apply escaping `\`.
+	let sanitized = if stripped.contains("\\\\") {
+		Cow::Owned(stripped.replace("\\\\", "\\"))
+	} else {
+		Cow::Borrowed(stripped)
+	};
+	// Apply escaping `"`.
+	let sanitized = if stripped.contains("\\\"") {
+		Cow::Owned(sanitized.replace("\\\"", "\""))
+	} else {
+		sanitized
+	};
+
+	// Don't allow escaping anything else.
+	if sanitized.contains('\\') {
+		return Err(compile_error(span, "only escaping `\"` is supported"));
 	}
 
-	Ok(stripped)
+	// Don't allow null characters, as we use those as delimiters between assembly
+	// blocks.
+	if sanitized.contains('\0') {
+		return Err(compile_error(span, " null characters are not supported"));
+	}
+
+	Ok(sanitized)
 }
 
 fn compile_error<E: Display>(span: Span, error: E) -> TokenStream {
