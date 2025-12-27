@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "js-bindgen"
+name = "js-sys-macro"
 rust-version = "1.59"
 version = "0.0.0"
 
@@ -16,6 +16,3 @@ proc-macro2 = { version = "1", default-features = false }
 quote = { version = "1", default-features = false }
 similar-asserts = { version = "1", default-features = false }
 syn = { version = "2", default-features = false, features = ["parsing", "printing"] }
-
-[lints]
-workspace = true

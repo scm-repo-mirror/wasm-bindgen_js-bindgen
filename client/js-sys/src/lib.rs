@@ -12,6 +12,9 @@ use alloc::vec::Vec;
 use core::cell::RefCell;
 use core::marker::PhantomData;
 
+pub use js_bindgen;
+pub use js_sys_macro::js_sys;
+
 use crate::hazard::Input;
 
 #[cfg(not(target_feature = "reference-types"))]

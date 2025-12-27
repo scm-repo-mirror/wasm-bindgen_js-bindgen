@@ -1,0 +1,203 @@
+#[cfg(not(test))]
+extern crate proc_macro;
+#[cfg(test)]
+extern crate proc_macro2 as proc_macro;
+
+use std::fmt::Display;
+use std::iter::{self, Peekable};
+
+use proc_macro::{
+	token_stream, Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree,
+};
+
+pub fn parse_meta_name_value(
+	mut stream: impl Iterator<Item = TokenTree>,
+	ident: &str,
+) -> Result<String, TokenStream> {
+	let expected = format!("`{ident} = \"...\"`");
+
+	let span = expect_ident(&mut stream, ident, Span::mixed_site(), &expected)?.span();
+	let span = expect_punct(&mut stream, '=', span, &expected)?.span();
+	let mut string = String::new();
+	parse_string_literal(stream, span, &mut string)?;
+
+	Ok(string)
+}
+
+pub fn parse_ty_or_value(
+	mut stream: &mut Peekable<token_stream::IntoIter>,
+	previous_span: Span,
+) -> Result<Vec<TokenTree>, TokenStream> {
+	let mut ty = Vec::new();
+
+	if let Some(TokenTree::Punct(p)) = stream.peek() {
+		if p.as_char() == '&' {
+			ty.extend(iter::once(stream.next().unwrap()));
+		}
+	}
+
+	while let Some(tok) = stream.peek() {
+		match tok {
+			TokenTree::Ident(_) | TokenTree::Group(_) => ty.push(stream.next().unwrap()),
+			TokenTree::Punct(p) if p.as_char() == '<' => {
+				ty.extend(parse_angular(&mut stream, previous_span)?)
+			}
+			TokenTree::Punct(p) if [':', '.'].contains(&p.as_char()) => {
+				ty.push(stream.next().unwrap())
+			}
+			_ => break,
+		}
+	}
+
+	if ty.is_empty() {
+		Err(compile_error(previous_span, "expected type"))
+	} else {
+		Ok(ty)
+	}
+}
+
+fn parse_angular(
+	mut stream: impl Iterator<Item = TokenTree>,
+	previous_span: Span,
+) -> Result<TokenStream, TokenStream> {
+	let opening = expect_punct(&mut stream, '<', previous_span, "`<`")?;
+	let span = opening.span();
+	let mut angular = TokenStream::from_iter(iter::once(TokenTree::from(opening)));
+
+	let mut opened = 1;
+
+	for tok in &mut stream {
+		match &tok {
+			TokenTree::Punct(p) if p.as_char() == '>' => opened -= 1,
+			TokenTree::Punct(p) if p.as_char() == '<' => opened += 1,
+			_ => (),
+		}
+
+		angular.extend(iter::once(tok));
+
+		if opened == 0 {
+			break;
+		}
+	}
+
+	if opened == 0 {
+		Ok(angular)
+	} else {
+		Err(compile_error(span, "type not completed, missing `>`"))
+	}
+}
+
+pub fn parse_string_literal(
+	mut stream: impl Iterator<Item = TokenTree>,
+	previous_span: Span,
+	string: &mut String,
+) -> Result<Literal, TokenStream> {
+	match stream.next() {
+		Some(TokenTree::Literal(l)) => {
+			let span = l.span();
+			let lit = l.to_string();
+
+			// Strip starting and ending `"`.
+			let Some(stripped) = lit.strip_prefix('"').and_then(|lit| lit.strip_suffix('"')) else {
+				return Err(compile_error(span, "expecting a string literal"));
+			};
+
+			string.reserve(stripped.len());
+			let mut chars = stripped.chars();
+
+			while let Some(char) = chars.next() {
+				match char {
+					'\\' => match chars.next().unwrap() {
+						'"' => string.push('"'),
+						'\\' => string.push('\\'),
+						'n' => string.push('\n'),
+						't' => string.push('\t'),
+						c => {
+							return Err(compile_error(
+								span,
+								format!("escaping `{c}` is not supported"),
+							))
+						}
+					},
+					'\0' => return Err(compile_error(span, "null characters are not supported")),
+					c => string.push(c),
+				}
+			}
+
+			Ok(l)
+		}
+		Some(tok) => Err(compile_error(tok.span(), "expected a string literal")),
+		None => Err(compile_error(previous_span, "expected a string literal`")),
+	}
+}
+
+pub fn parse_ident(
+	mut stream: impl Iterator<Item = TokenTree>,
+	previous_span: Span,
+	expected: &str,
+) -> Result<Ident, TokenStream> {
+	match stream.next() {
+		Some(TokenTree::Ident(i)) => Ok(i),
+		Some(tok) => Err(compile_error(tok.span(), format!("expected {expected}"))),
+		None => Err(compile_error(previous_span, format!("expected {expected}"))),
+	}
+}
+
+pub fn expect_ident(
+	stream: impl Iterator<Item = TokenTree>,
+	ident: &str,
+	previous_span: Span,
+	expected: &str,
+) -> Result<Ident, TokenStream> {
+	let i = parse_ident(stream, previous_span, expected)?;
+
+	#[cfg_attr(test, allow(clippy::cmp_owned))]
+	if i.to_string() == ident {
+		Ok(i)
+	} else {
+		Err(compile_error(previous_span, format!("expected {expected}")))
+	}
+}
+
+pub fn expect_punct(
+	mut stream: impl Iterator<Item = TokenTree>,
+	char: char,
+	previous_span: Span,
+	expected: &str,
+) -> Result<Punct, TokenStream> {
+	match stream.next() {
+		Some(TokenTree::Punct(p)) if p.as_char() == char => Ok(p),
+		Some(tok) => Err(compile_error(tok.span(), format!("expected {expected}"))),
+		None => Err(compile_error(previous_span, format!("expected {expected}"))),
+	}
+}
+
+pub fn path(
+	parts: impl IntoIterator<Item = &'static str>,
+	span: Span,
+) -> impl Iterator<Item = TokenTree> {
+	parts.into_iter().flat_map(move |p| {
+		[
+			TokenTree::from(Punct::new(':', Spacing::Joint)),
+			Punct::new(':', Spacing::Alone).into(),
+			Ident::new(p, span).into(),
+		]
+	})
+}
+
+/// ```"not rust"
+/// ::core::compile_error!(error);
+/// ```
+pub fn compile_error<E: Display>(span: Span, error: E) -> TokenStream {
+	TokenStream::from_iter(
+		path(["core", "compile_error"], span).chain([
+			Punct::new('!', Spacing::Alone).into(),
+			Group::new(
+				Delimiter::Parenthesis,
+				TokenTree::from(Literal::string(&error.to_string())).into(),
+			)
+			.into(),
+			Punct::new(';', Spacing::Alone).into(),
+		]),
+	)
+}

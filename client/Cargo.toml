@@ -1,5 +1,5 @@
 [workspace]
-members = ["js-bindgen", "js-sys", "web-sys"]
+members = ["js-bindgen", "js-sys", "js-sys-macro", "shared", "web-sys"]
 resolver = "2"
 
 [package]

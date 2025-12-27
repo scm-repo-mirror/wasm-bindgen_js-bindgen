@@ -61,6 +61,7 @@ This is a list of upstream issues that could make our lives significantly easier
 - Better stable proc-macro support
   - `quote!`: https://github.com/rust-lang/rust/issues/54722.
   - Diagnostics: https://github.com/rust-lang/rust/issues/54140.
+  - Execution in non-proc-macro crates: https://github.com/rust-lang/rust/issues/130856.
 - Elevate `wasm64-unknown-unknown` to tier 2: https://github.com/rust-lang/rust/issues/146944.
 - Safe slice to array conversion: https://github.com/rust-lang/rust/issues/133508.
 - A way to flag proc-macros as `unsafe`: https://github.com/rust-lang/rfcs/pull/3715.
