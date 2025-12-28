@@ -9,6 +9,7 @@
 
 # High Priority
 
+- Provide an absolutely minimal allocator.
 - Allocate slots on the `externref` table in batches.
 - Figure out what to do with the panic optimization.
 - Not clear yet how to separate the `js-bindgen` proc-macros from `js-sys`. Probably `js-bindgen`
