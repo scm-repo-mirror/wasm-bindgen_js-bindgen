@@ -13,6 +13,7 @@ pub mod hazard;
 mod panic;
 
 use core::marker::PhantomData;
+use core::ops::Deref;
 
 pub use js_bindgen;
 pub use js_sys_macro::js_sys;
@@ -21,6 +22,7 @@ use crate::externref::EXTERNREF_TABLE;
 use crate::hazard::{Input, Output};
 pub use crate::panic::{panic, UnwrapThrowExt};
 
+#[repr(transparent)]
 pub struct JsValue {
 	index: i32,
 	_local: PhantomData<*const ()>,
@@ -45,15 +47,15 @@ impl Drop for JsValue {
 	}
 }
 
-unsafe impl Input for JsValue {
-	const IMPORT_FUNC: &str = ".functype js_sys.externref.get (i32) -> (externref)";
-	const IMPORT_TYPE: &str = "externref";
-	const TYPE: &str = "i32";
-	const CONV: &str = "call js_sys.externref.get";
+unsafe impl Input for &JsValue {
+	const IMPORT_FUNC: &'static str = ".functype js_sys.externref.get (i32) -> (externref)";
+	const IMPORT_TYPE: &'static str = "externref";
+	const TYPE: &'static str = "i32";
+	const CONV: &'static str = "call js_sys.externref.get";
 
 	type Type = i32;
 
-	fn as_raw(&self) -> Self::Type {
+	fn into_raw(self) -> Self::Type {
 		self.index
 	}
 }
@@ -71,8 +73,100 @@ unsafe impl Output for JsValue {
 	}
 }
 
+js_bindgen::js_import!(
+	name = "string.decode",
+	"(array, len) => {{",
+	"	array >>>= 0",
+	"	len >>>= 0",
+	"",
+	"	const decoder = new TextDecoder(\"utf-8\", {{",
+	"		fatal: false,",
+	"		ignoreBOM: false,",
+	"	}})",
+	"	const view = new Uint8Array(memory.buffer, array, len)",
+	"",
+	"	return decoder.decode(view)",
+	"}}",
+);
+
 #[js_sys(js_sys = crate)]
 extern "C" {
-	#[js_sys(name = "isNaN")]
+	#[js_sys(js_import = "string.decode")]
+	fn string_decode(array: *const u8, len: u32) -> JsString;
+}
+
+#[repr(transparent)]
+pub struct JsString(JsValue);
+
+impl JsString {
+	#[allow(clippy::should_implement_trait)]
+	pub fn from_str(string: &str) -> Self {
+		string_decode(string.as_ptr(), string.len().try_into().unwrap_throw())
+	}
+}
+
+impl Deref for JsString {
+	type Target = JsValue;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+unsafe impl Input for &JsString {
+	const IMPORT_FUNC: &'static str = ".functype js_sys.externref.get (i32) -> (externref)";
+	const IMPORT_TYPE: &'static str = "externref";
+	const TYPE: &'static str = "i32";
+	const CONV: &'static str = "call js_sys.externref.get";
+
+	type Type = i32;
+
+	fn into_raw(self) -> Self::Type {
+		self.0.into_raw()
+	}
+}
+
+unsafe impl Output for JsString {
+	const IMPORT_FUNC: &str = ".functype js_sys.externref.insert (externref) -> (i32)";
+	const IMPORT_TYPE: &str = "externref";
+	const TYPE: &str = "i32";
+	const CONV: &str = "call js_sys.externref.insert";
+
+	type Type = i32;
+
+	fn from_raw(raw: Self::Type) -> Self {
+		Self(JsValue::from_raw(raw))
+	}
+}
+
+unsafe impl Input for u32 {
+	const IMPORT_FUNC: &str = "";
+	const IMPORT_TYPE: &str = "i32";
+	const TYPE: &str = "i32";
+	const CONV: &str = "";
+
+	type Type = Self;
+
+	fn into_raw(self) -> Self::Type {
+		self
+	}
+}
+
+unsafe impl Input for *const u8 {
+	const IMPORT_FUNC: &str = "";
+	const IMPORT_TYPE: &str = "i32";
+	const TYPE: &str = "i32";
+	const CONV: &str = "";
+
+	type Type = Self;
+
+	fn into_raw(self) -> Self::Type {
+		self
+	}
+}
+
+#[js_sys(js_sys = crate)]
+extern "C" {
+	#[js_sys(js_name = "isNaN")]
 	pub fn is_nan() -> JsValue;
 }

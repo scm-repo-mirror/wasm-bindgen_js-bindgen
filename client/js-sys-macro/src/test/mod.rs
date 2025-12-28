@@ -15,7 +15,7 @@ fn test_js_bindgen(attr: TokenStream, item: TokenStream, expected: TokenStream) 
 #[test]
 fn basic() {
 	test_js_bindgen(
-		quote! {},
+		TokenStream::new(),
 		quote! {
 			extern "C" {
 				pub fn log(data: &JsValue);
@@ -37,20 +37,20 @@ fn basic() {
 					"\t{}",
 					"\tcall test_crate.import.log",
 					"\tend_function",
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
 
 				extern "C" {
 					#[link_name = "test_crate.log"]
-					fn log(data: <JsValue as ::js_sys::hazard::Input>::Type);
+					fn log(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
 
-				unsafe { log(<JsValue as ::js_sys::hazard::Input>::as_raw(data)) };
+				unsafe { log(<&JsValue as ::js_sys::hazard::Input>::into_raw(data)) };
 			}
 		},
 	);
@@ -81,20 +81,20 @@ fn namespace() {
 					"\t{}",
 					"\tcall test_crate.import.console.log",
 					"\tend_function",
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "console.log", "console.log");
 
 				extern "C" {
 					#[link_name = "test_crate.console.log"]
-					fn log(data: <JsValue as ::js_sys::hazard::Input>::Type);
+					fn log(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
 
-				unsafe { log(<JsValue as ::js_sys::hazard::Input>::as_raw(data)) };
+				unsafe { log(<&JsValue as ::js_sys::hazard::Input>::into_raw(data)) };
 			}
 		},
 	);
@@ -125,20 +125,20 @@ fn js_sys() {
 					"\t{}",
 					"\tcall test_crate.import.log",
 					"\tend_function",
-					interpolate <JsValue as crate::hazard::Input>::IMPORT_TYPE,
-					interpolate <JsValue as crate::hazard::Input>::IMPORT_FUNC,
-					interpolate <JsValue as crate::hazard::Input>::TYPE,
-					interpolate <JsValue as crate::hazard::Input>::CONV,
+					interpolate <&JsValue as crate::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as crate::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as crate::hazard::Input>::TYPE,
+					interpolate <&JsValue as crate::hazard::Input>::CONV,
 				);
 
 				crate::js_bindgen::js_import!(name = "log", "log");
 
 				extern "C" {
 					#[link_name = "test_crate.log"]
-					fn log(data: <JsValue as crate::hazard::Input>::Type);
+					fn log(data: <&JsValue as crate::hazard::Input>::Type);
 				}
 
-				unsafe { log(<JsValue as crate::hazard::Input>::as_raw(data)) };
+				unsafe { log(<&JsValue as crate::hazard::Input>::into_raw(data)) };
 			}
 		},
 	);
@@ -147,7 +147,7 @@ fn js_sys() {
 #[test]
 fn two_parameters() {
 	test_js_bindgen(
-		quote! {},
+		TokenStream::new(),
 		quote! {
 			extern "C" {
 				pub fn log(data1: &JsValue, data2: &JsValue);
@@ -173,14 +173,14 @@ fn two_parameters() {
 					"\t{}",
 					"\tcall test_crate.import.log",
 					"\tend_function",
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
-					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
@@ -188,15 +188,15 @@ fn two_parameters() {
 				extern "C" {
 					#[link_name = "test_crate.log"]
 					fn log(
-						data1: <JsValue as ::js_sys::hazard::Input>::Type,
-						data2: <JsValue as ::js_sys::hazard::Input>::Type,
+						data1: <&JsValue as ::js_sys::hazard::Input>::Type,
+						data2: <&JsValue as ::js_sys::hazard::Input>::Type,
 					);
 				}
 
 				unsafe {
 					log(
-						<JsValue as ::js_sys::hazard::Input>::as_raw(data1),
-						<JsValue as ::js_sys::hazard::Input>::as_raw(data2),
+						<&JsValue as ::js_sys::hazard::Input>::into_raw(data1),
+						<&JsValue as ::js_sys::hazard::Input>::into_raw(data2),
 					)
 				};
 			}
@@ -207,7 +207,7 @@ fn two_parameters() {
 #[test]
 fn empty() {
 	test_js_bindgen(
-		quote! {},
+		TokenStream::new(),
 		quote! {
 			extern "C" {
 				pub fn log();
@@ -241,12 +241,12 @@ fn empty() {
 }
 
 #[test]
-fn real_name() {
+fn js_name() {
 	test_js_bindgen(
-		quote! {},
+		TokenStream::new(),
 		quote! {
 			extern "C" {
-				#[js_sys(name = "log")]
+				#[js_sys(js_name = "log")]
 				pub fn logx(data: &JsValue);
 			}
 		},
@@ -266,20 +266,63 @@ fn real_name() {
 					"\t{}",
 					"\tcall test_crate.import.logx",
 					"\tend_function",
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
-					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "logx", "log");
 
 				extern "C" {
 					#[link_name = "test_crate.logx"]
-					fn logx(data: <JsValue as ::js_sys::hazard::Input>::Type);
+					fn logx(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
 
-				unsafe { logx(<JsValue as ::js_sys::hazard::Input>::as_raw(data)) };
+				unsafe { logx(<&JsValue as ::js_sys::hazard::Input>::into_raw(data)) };
+			}
+		},
+	);
+}
+
+#[test]
+fn js_import() {
+	test_js_bindgen(
+		TokenStream::new(),
+		quote! {
+			extern "C" {
+				#[js_sys(js_import = "custom")]
+				pub fn logx(data: &JsValue);
+			}
+		},
+		quote! {
+			pub fn logx(data: &JsValue) {
+				::js_sys::js_bindgen::unsafe_embed_asm!(
+					".import_module test_crate.import.custom, test_crate",
+					".import_name test_crate.import.custom, custom",
+					".functype test_crate.import.custom ({}) -> ()",
+					"",
+					"{}",
+					"",
+					".globl test_crate.logx",
+					"test_crate.logx:",
+					"\t.functype test_crate.logx ({}) -> ()",
+					"\tlocal.get 0",
+					"\t{}",
+					"\tcall test_crate.import.custom",
+					"\tend_function",
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
+				);
+
+				extern "C" {
+					#[link_name = "test_crate.logx"]
+					fn logx(data: <&JsValue as ::js_sys::hazard::Input>::Type);
+				}
+
+				unsafe { logx(<&JsValue as ::js_sys::hazard::Input>::into_raw(data)) };
 			}
 		},
 	);
@@ -288,7 +331,7 @@ fn real_name() {
 #[test]
 fn r#return() {
 	test_js_bindgen(
-		quote! {},
+		TokenStream::new(),
 		quote! {
 			extern "C" {
 				pub fn is_nan() -> JsValue;
@@ -323,6 +366,61 @@ fn r#return() {
 				}
 
 				<JsValue as ::js_sys::hazard::Output>::from_raw(unsafe { is_nan() })
+			}
+		},
+	);
+}
+
+#[test]
+fn pointer() {
+	test_js_bindgen(
+		TokenStream::new(),
+		quote! {
+			extern "C" {
+				fn array(array: *const u8) -> JsString;
+			}
+		},
+		quote! {
+			fn array(array: *const u8) -> JsString {
+				::js_sys::js_bindgen::unsafe_embed_asm!(
+					".import_module test_crate.import.array, test_crate",
+					".import_name test_crate.import.array, array",
+					".functype test_crate.import.array ({}) -> ({})",
+					"",
+					"{}",
+					"",
+					"{}",
+					"",
+					".globl test_crate.array", "test_crate.array:",
+					"\t.functype test_crate.array ({}) -> ({})",
+					"\tlocal.get 0",
+					"\t{}",
+					"\tcall test_crate.import.array",
+					"\t{}",
+					"\tend_function",
+					interpolate <*const u8 as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsString as ::js_sys::hazard::Output>::IMPORT_TYPE,
+					interpolate <*const u8 as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsString as ::js_sys::hazard::Output>::IMPORT_FUNC,
+					interpolate <*const u8 as ::js_sys::hazard::Input>::TYPE,
+					interpolate <JsString as ::js_sys::hazard::Output>::TYPE,
+					interpolate <*const u8 as ::js_sys::hazard::Input>::CONV,
+					interpolate <JsString as ::js_sys::hazard::Output>::CONV,
+				);
+
+				::js_sys::js_bindgen::js_import!(name = "array", "array");
+
+				extern "C" {
+					#[link_name = "test_crate.array"]
+					fn array(
+						array: <*const u8 as ::js_sys::hazard::Input>::Type,
+					) -> <JsString as ::js_sys::hazard::Output>::Type;
+
+				}
+
+				<JsString as ::js_sys::hazard::Output>::from_raw(unsafe {
+					array(<*const u8 as ::js_sys::hazard::Input>::into_raw(array))
+				})
 			}
 		},
 	);

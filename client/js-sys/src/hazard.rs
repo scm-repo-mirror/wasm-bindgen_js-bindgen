@@ -10,7 +10,7 @@ pub unsafe trait Input {
 
 	type Type;
 
-	fn as_raw(&self) -> Self::Type;
+	fn into_raw(self) -> Self::Type;
 }
 
 /// # Safety

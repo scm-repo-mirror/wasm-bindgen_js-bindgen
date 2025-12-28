@@ -18,7 +18,10 @@ pub fn parse_ty_or_value(
 
 	if let Some(TokenTree::Punct(p)) = stream.peek() {
 		if p.as_char() == '&' {
-			ty.extend(iter::once(stream.next().unwrap()));
+			ty.push(stream.next().unwrap());
+		} else if p.as_char() == '*' {
+			ty.push(stream.next().unwrap());
+			ty.push(expect_ident(&mut stream, "const", previous_span, "`*const`")?.into())
 		}
 	}
 

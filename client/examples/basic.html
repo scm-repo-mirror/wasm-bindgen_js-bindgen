@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Basic Example</title>
-    <script type=module>
-        import { importObject } from "../target/wasm32-unknown-unknown/release/examples/basic.js"
+	<title>Basic Example</title>
+	<link rel=icon href=data:,>
+	<script type=module>
+		import { importObject } from '../target/wasm32-unknown-unknown/release/examples/basic.js'
 
-        const { module, instance } = await WebAssembly.instantiateStreaming(
-            fetch("../target/wasm32-unknown-unknown/release/examples/basic.wasm"),
-            importObject,
-        )
-        instance.exports.foo()
-    </script>
+		const { module, instance } = await WebAssembly.instantiateStreaming(
+			fetch('../target/wasm32-unknown-unknown/release/examples/basic.wasm'),
+			importObject,
+		)
+		instance.exports.foo()
+	</script>
 </head>
 <body></body>
 </html>

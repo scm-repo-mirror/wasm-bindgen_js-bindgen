@@ -10,7 +10,7 @@ pub mod console {
 	extern "C" {
 		pub fn log(data: &JsValue);
 
-		#[js_sys(name = "log")]
+		#[js_sys(js_name = "log")]
 		pub fn log2(data1: &JsValue, data2: &JsValue);
 	}
 }

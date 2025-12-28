@@ -34,6 +34,11 @@ pub fn js_sys(attr: TokenStream, original_item: TokenStream) -> TokenStream {
 	})
 }
 
+enum JsName {
+	Name(String),
+	Import(String),
+}
+
 fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, TokenStream> {
 	let mut attr = attr.into_iter().peekable();
 	let mut item = item.into_iter().peekable();
@@ -112,7 +117,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 	let mut output = TokenStream::new();
 
 	while let Some(tok) = fns.peek() {
-		let mut real_name = None;
+		let mut js_name = None;
 
 		if let TokenTree::Punct(p) = tok {
 			if p.as_char() == '#' {
@@ -123,11 +128,16 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 				let meta =
 					expect_group(&mut inner, Delimiter::Parenthesis, js_sys.span(), "`(...)`")?;
 				let mut inner = meta.stream().into_iter();
-				let name = expect_ident(&mut inner, "name", meta.span(), "`name = \"...\"`")?;
-				let equal = expect_punct(&mut inner, '=', name.span(), "`= \"...\"`")?;
+				let attribute = parse_ident(&mut inner, meta.span(), "`<attribute> = \"...\"`")?;
+				let equal = expect_punct(&mut inner, '=', attribute.span(), "`= \"...\"`")?;
 				let mut name = String::new();
 				parse_string_literal(&mut inner, equal.span(), &mut name)?;
-				real_name = Some(name);
+
+				js_name = Some(match attribute.to_string().as_str() {
+					"js_name" => JsName::Name(name),
+					"js_import" => JsName::Import(name),
+					_ => return Err(compile_error(attribute.span(), "`js_name` or `js_import`")),
+				})
 			}
 		}
 
@@ -168,15 +178,20 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			]
 		});
 
+		let import_name = match &js_name {
+			Some(JsName::Import(name)) => name.clone(),
+			_ => comp_name.clone(),
+		};
+
 		let strings = [
 			Cow::Owned(format!(
-				".import_module {package}.import.{comp_name}, {package}"
+				".import_module {package}.import.{import_name}, {package}"
 			)),
 			Cow::Owned(format!(
-				".import_name {package}.import.{comp_name}, {comp_name}"
+				".import_name {package}.import.{import_name}, {import_name}"
 			)),
 			Cow::Owned(format!(
-				".functype {package}.import.{comp_name} ({comp_parms}) -> ({comp_ret})"
+				".functype {package}.import.{import_name} ({comp_parms}) -> ({comp_ret})"
 			)),
 			Cow::Borrowed(""),
 		]
@@ -201,7 +216,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 		])
 		.chain(parms_input)
 		.chain(iter::once(Cow::Owned(format!(
-			"\tcall {package}.import.{comp_name}"
+			"\tcall {package}.import.{import_name}"
 		))))
 		.chain(ret_ty.as_ref().into_iter().map(|_| Cow::Borrowed("\t{}")))
 		.chain(iter::once(Cow::Borrowed("\tend_function")));
@@ -307,31 +322,35 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 				Punct::new(';', Spacing::Alone).into(),
 			]);
 
-		let comp_real_name = if let Some(real_name) = real_name {
-			if let Some(namespace) = &namespace {
-				Cow::Owned(format!("{namespace}.{real_name}"))
-			} else {
-				Cow::Owned(real_name)
-			}
-		} else {
-			Cow::Borrowed(&comp_name)
-		};
+		let js_glue = matches!(js_name, None | Some(JsName::Name(_))).then(|| {
+			let comp_js_name = match js_name {
+				Some(JsName::Name(name)) => {
+					if let Some(namespace) = &namespace {
+						Cow::Owned(format!("{namespace}.{name}"))
+					} else {
+						Cow::Owned(name)
+					}
+				}
+				Some(JsName::Import(_)) => unreachable!(),
+				None => Cow::Borrowed(&comp_name),
+			};
 
-		let js_glue = path_with_js_sys(&js_sys, ["js_bindgen", "js_import"], name.span()).chain([
-			Punct::new('!', Spacing::Alone).into(),
-			Group::new(
-				Delimiter::Parenthesis,
-				TokenStream::from_iter([
-					TokenTree::from(Ident::new("name", name.span())),
-					Punct::new('=', Spacing::Alone).into(),
-					Literal::string(&comp_name).into(),
-					Punct::new(',', Spacing::Alone).into(),
-					Literal::string(&comp_real_name).into(),
-				]),
-			)
-			.into(),
-			Punct::new(';', Spacing::Alone).into(),
-		]);
+			path_with_js_sys(&js_sys, ["js_bindgen", "js_import"], name.span()).chain([
+				Punct::new('!', Spacing::Alone).into(),
+				Group::new(
+					Delimiter::Parenthesis,
+					TokenStream::from_iter([
+						TokenTree::from(Ident::new("name", name.span())),
+						Punct::new('=', Spacing::Alone).into(),
+						Literal::string(&comp_name).into(),
+						Punct::new(',', Spacing::Alone).into(),
+						Literal::string(&comp_js_name).into(),
+					]),
+				)
+				.into(),
+				Punct::new(';', Spacing::Alone).into(),
+			])
+		});
 
 		let rust_parms = parms.iter().flat_map(|Parameter { name, ty, .. }| {
 			[
@@ -380,7 +399,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 		];
 
 		let call_parms = parms.iter().flat_map(|Parameter { name, ty, .. }| {
-			js_sys_hazard(ty, &js_sys, "Input", "as_raw", name.span()).chain([
+			js_sys_hazard(ty, &js_sys, "Input", "into_raw", name.span()).chain([
 				Group::new(
 					Delimiter::Parenthesis,
 					TokenStream::from_iter(iter::once(TokenTree::from(name.clone()))),
@@ -423,7 +442,6 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 					.flat_map(|p| {
 						[p.name.into(), p.colon.into()]
 							.into_iter()
-							.chain(p.r#ref.into_iter().map(TokenTree::from))
 							.chain(p.ty)
 							.chain(p.comma.into_iter().map(TokenTree::from))
 					})
@@ -438,7 +456,12 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 		);
 		output.extend(iter::once(TokenTree::from(Group::new(
 			Delimiter::Brace,
-			TokenStream::from_iter(assembly.chain(js_glue).chain(import).chain(call)),
+			TokenStream::from_iter(
+				assembly
+					.chain(js_glue.into_iter().flatten())
+					.chain(import)
+					.chain(call),
+			),
 		))));
 	}
 
@@ -456,7 +479,6 @@ struct ExternFn {
 struct Parameter {
 	name: Ident,
 	colon: Punct,
-	r#ref: Option<Punct>,
 	ty: Vec<TokenTree>,
 	comma: Option<Punct>,
 }
@@ -499,16 +521,7 @@ fn parse_extern_fn(
 			name.span(),
 			"colon after parameter name",
 		)?;
-
-		let r#ref = match parms_stream.peek() {
-			Some(TokenTree::Punct(p)) if p.as_char() == '&' => {
-				Some(expect_punct(&mut parms_stream, '&', colon.span(), "`&`")?)
-			}
-			_ => None,
-		};
-
 		let ty = parse_ty_or_value(&mut parms_stream, colon.span())?;
-
 		let comma = if parms_stream.peek().is_some() {
 			Some(expect_punct(
 				&mut parms_stream,
@@ -523,7 +536,6 @@ fn parse_extern_fn(
 		parms.push(Parameter {
 			name,
 			colon,
-			r#ref,
 			ty,
 			comma,
 		});

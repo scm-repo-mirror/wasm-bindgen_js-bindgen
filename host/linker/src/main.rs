@@ -1,14 +1,15 @@
 mod lld;
 
+use std::ffi::OsString;
 use std::io::{Error, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{self, Command, Stdio};
 use std::{env, fs};
 
 use hashbrown::{HashMap, HashSet};
 use object::read::archive::ArchiveFile;
 use wasm_encoder::{EntityType, ImportSection, Module, RawSection, Section};
-use wasmparser::{Encoding, Parser, Payload};
+use wasmparser::{Encoding, Parser, Payload, TypeRef};
 
 use crate::lld::WasmLdArguments;
 
@@ -31,7 +32,11 @@ fn main() {
 	);
 
 	// Here we store additional files we want to pass to LLD as arguments.
-	let mut asm_args: Vec<PathBuf> = Vec::new();
+	let mut lld_args: Vec<OsString> = Vec::new();
+
+	if lld.table.get(b"import-memory".as_slice()).is_none() {
+		lld_args.push(OsString::from("--import-memory=js_bindgen,memory"))
+	}
 
 	for input in &lld.inputs {
 		// We found a UNIX archive.
@@ -72,7 +77,7 @@ fn main() {
 
 				process_object(
 					arch,
-					&mut asm_args,
+					&mut lld_args,
 					&archive_path.with_file_name(name),
 					data,
 				);
@@ -87,13 +92,13 @@ fn main() {
 				}
 			};
 
-			process_object(arch, &mut asm_args, object_path, &object);
+			process_object(arch, &mut lld_args, object_path, &object);
 		}
 	}
 
 	let status = Command::new("rust-lld")
 		.args(args.iter().skip(1))
-		.args(asm_args)
+		.args(lld_args)
 		.status()
 		.unwrap();
 
@@ -106,7 +111,7 @@ fn main() {
 
 /// Extracts any assembly instructions from `js-bindgen`, builds object files
 /// from them and passes them to the linker.
-fn process_object(arch: &str, asm_args: &mut Vec<PathBuf>, archive_path: &Path, object: &[u8]) {
+fn process_object(arch: &str, asm_args: &mut Vec<OsString>, archive_path: &Path, object: &[u8]) {
 	let mut asm_counter = 0;
 
 	for payload in Parser::new(0).parse_all(object) {
@@ -130,7 +135,7 @@ fn process_object(arch: &str, asm_args: &mut Vec<PathBuf>, archive_path: &Path, 
 				asm_counter += 1;
 				fs::write(&asm_path, asm_object).expect("writing ASM object file should succeed");
 
-				asm_args.push(asm_path);
+				asm_args.push(asm_path.into());
 			}
 		}
 	}
@@ -203,6 +208,7 @@ fn post_processing(output_path: &Path) {
 	let mut js_glue: HashMap<&str, HashMap<&str, &[u8]>> = HashMap::new();
 	let mut import_names: HashMap<&str, HashSet<&str>> = HashMap::new();
 	let mut import_js_glues: HashMap<&str, HashMap<&str, &[u8]>> = HashMap::new();
+	let mut memory = None;
 
 	for payload in Parser::new(0).parse_all(&wasm_input) {
 		let payload = payload.expect("object file should be valid Wasm");
@@ -226,6 +232,14 @@ fn post_processing(output_path: &Path) {
 						EntityType::try_from(import.ty)
 							.expect("`wasmparser` type should be convertible"),
 					);
+
+					if let TypeRef::Memory(m) = import.ty
+						&& import.module == "js_bindgen"
+						&& import.name == "memory"
+					{
+						memory = Some(m);
+						continue;
+					}
 
 					if let Some(glue) = import_js_glues
 						.get_mut(import.module)
@@ -309,10 +323,31 @@ fn post_processing(output_path: &Path) {
 		}
 	}
 
+	let memory = memory.expect("unable to find main memory");
+
 	fs::write(output_path, wasm_output).expect("object file should be writable");
 
 	let mut js_output = Vec::new();
+	write!(
+		js_output,
+		"const memory = new WebAssembly.Memory({{ initial: {}{}{}{} }})\n\n",
+		memory.initial,
+		memory
+			.maximum
+			.map(|max| format!(", maximum: {max}"))
+			.unwrap_or_default(),
+		memory
+			.memory64
+			.then_some(", address: 'i64'")
+			.unwrap_or_default(),
+		memory
+			.shared
+			.then_some(", shared: true")
+			.unwrap_or_default()
+	)
+	.unwrap();
 	js_output.extend_from_slice(b"export const importObject = {\n");
+	js_output.extend_from_slice(b"\tjs_bindgen: { memory },");
 
 	for (module, names) in js_glue {
 		writeln!(js_output, "\t{module}: {{").unwrap();
