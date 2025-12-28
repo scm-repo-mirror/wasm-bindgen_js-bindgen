@@ -10,7 +10,6 @@
 
 # High Priority
 
-- Provide an absolutely minimal allocator.
 - Allocate slots on the `externref` table in batches.
 - Figure out what to do with the panic optimization.
 - Experiment if allocation is better for build times then iterator chaining in proc-macros.
@@ -27,6 +26,8 @@
 
 # Medium Priority
 
+- Provide an absolutely minimal allocator.
+- The `js_sys` proc-macro should remove the `extern "C" { ... }` part of the input on error.
 - Optimize linker file interactions by using memory mapped files instead of reading and writing
   everything into memory.
 - Run the assembly compiler on the proc-macro level so users see errors without having to engage the

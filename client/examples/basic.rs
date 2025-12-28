@@ -4,6 +4,7 @@ extern crate alloc;
 
 use core::arch::wasm32;
 
+use mini_alloc::MiniAlloc;
 use web_sys::{console, js_sys};
 
 #[panic_handler]
@@ -12,7 +13,7 @@ fn panic(_: &core::panic::PanicInfo<'_>) -> ! {
 }
 
 #[global_allocator]
-static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
+static ALLOC: MiniAlloc = MiniAlloc::INIT;
 
 #[unsafe(no_mangle)]
 extern "C" fn foo() {
