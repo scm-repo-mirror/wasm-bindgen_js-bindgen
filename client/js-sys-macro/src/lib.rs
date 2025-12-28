@@ -206,36 +206,77 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 		.chain(ret_ty.as_ref().into_iter().map(|_| Cow::Borrowed("\t{}")))
 		.chain(iter::once(Cow::Borrowed("\tend_function")));
 
+		let interpolate = iter::once(TokenTree::from(Ident::new("interpolate", name.span())));
 		let in_import_ty_fmt = parms.iter().flat_map(|Parameter { name, ty, .. }| {
-			js_sys_hazard(ty, &js_sys, "Input", "IMPORT_TYPE", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(
+					ty,
+					&js_sys,
+					"Input",
+					"IMPORT_TYPE",
+					name.span(),
+				))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let out_import_ty_fmt = ret_ty.as_ref().into_iter().flat_map(|(_, ty)| {
-			js_sys_hazard(ty, &js_sys, "Output", "IMPORT_TYPE", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(
+					ty,
+					&js_sys,
+					"Output",
+					"IMPORT_TYPE",
+					name.span(),
+				))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let in_import_func_fmt = parms.iter().flat_map(|Parameter { name, ty, .. }| {
-			js_sys_hazard(ty, &js_sys, "Input", "IMPORT_FUNC", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(
+					ty,
+					&js_sys,
+					"Input",
+					"IMPORT_FUNC",
+					name.span(),
+				))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let out_import_func_fmt = ret_ty.as_ref().into_iter().flat_map(|(_, ty)| {
-			js_sys_hazard(ty, &js_sys, "Output", "IMPORT_FUNC", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(
+					ty,
+					&js_sys,
+					"Output",
+					"IMPORT_FUNC",
+					name.span(),
+				))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let in_type_fmt = parms.iter().flat_map(|Parameter { name, ty, .. }| {
-			js_sys_hazard(ty, &js_sys, "Input", "TYPE", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(ty, &js_sys, "Input", "TYPE", name.span()))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let out_type_fmt = ret_ty.as_ref().into_iter().flat_map(|(_, ty)| {
-			js_sys_hazard(ty, &js_sys, "Output", "TYPE", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(ty, &js_sys, "Output", "TYPE", name.span()))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let in_conv_fmt = parms.iter().flat_map(|Parameter { name, ty, .. }| {
-			js_sys_hazard(ty, &js_sys, "Input", "CONV", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(ty, &js_sys, "Input", "CONV", name.span()))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 		let out_conv_fmt = ret_ty.as_ref().into_iter().flat_map(|(_, ty)| {
-			js_sys_hazard(ty, &js_sys, "Output", "CONV", name.span())
+			interpolate
+				.clone()
+				.chain(js_sys_hazard(ty, &js_sys, "Output", "CONV", name.span()))
 				.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
 		});
 

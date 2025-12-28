@@ -37,10 +37,10 @@ fn basic() {
 					"\t{}",
 					"\tcall test_crate.import.log",
 					"\tend_function",
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					<JsValue as ::js_sys::hazard::Input>::TYPE,
-					<JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
@@ -81,10 +81,10 @@ fn namespace() {
 					"\t{}",
 					"\tcall test_crate.import.console.log",
 					"\tend_function",
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					<JsValue as ::js_sys::hazard::Input>::TYPE,
-					<JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "console.log", "console.log");
@@ -125,10 +125,10 @@ fn js_sys() {
 					"\t{}",
 					"\tcall test_crate.import.log",
 					"\tend_function",
-					<JsValue as crate::hazard::Input>::IMPORT_TYPE,
-					<JsValue as crate::hazard::Input>::IMPORT_FUNC,
-					<JsValue as crate::hazard::Input>::TYPE,
-					<JsValue as crate::hazard::Input>::CONV,
+					interpolate <JsValue as crate::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsValue as crate::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsValue as crate::hazard::Input>::TYPE,
+					interpolate <JsValue as crate::hazard::Input>::CONV,
 				);
 
 				crate::js_bindgen::js_import!(name = "log", "log");
@@ -173,14 +173,14 @@ fn two_parameters() {
 					"\t{}",
 					"\tcall test_crate.import.log",
 					"\tend_function",
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					<JsValue as ::js_sys::hazard::Input>::TYPE,
-					<JsValue as ::js_sys::hazard::Input>::TYPE,
-					<JsValue as ::js_sys::hazard::Input>::CONV,
-					<JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
@@ -266,10 +266,10 @@ fn real_name() {
 					"\t{}",
 					"\tcall test_crate.import.logx",
 					"\tend_function",
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
-					<JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
-					<JsValue as ::js_sys::hazard::Input>::TYPE,
-					<JsValue as ::js_sys::hazard::Input>::CONV,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::IMPORT_FUNC,
+					interpolate <JsValue as ::js_sys::hazard::Input>::TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "logx", "log");
@@ -301,15 +301,18 @@ fn r#return() {
 					".import_name test_crate.import.is_nan, is_nan",
 					".functype test_crate.import.is_nan () -> ({})",
 					"",
+					"{}",
+					"",
 					".globl test_crate.is_nan",
 					"test_crate.is_nan:",
 					"\t.functype test_crate.is_nan () -> ({})",
 					"\tcall test_crate.import.is_nan",
 					"\t{}",
 					"\tend_function",
-					<JsValue as ::js_sys::hazard::Output>::IMPORT_TYPE,
-					<JsValue as ::js_sys::hazard::Output>::TYPE,
-					<JsValue as ::js_sys::hazard::Output>::CONV,
+					interpolate <JsValue as ::js_sys::hazard::Output>::IMPORT_TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Output>::IMPORT_FUNC,
+					interpolate <JsValue as ::js_sys::hazard::Output>::TYPE,
+					interpolate <JsValue as ::js_sys::hazard::Output>::CONV,
 				);
 
 				::js_sys::js_bindgen::js_import!(name = "is_nan", "is_nan");

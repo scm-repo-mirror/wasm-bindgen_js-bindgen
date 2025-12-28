@@ -136,6 +136,13 @@ fn parse_string_arguments(
 					}
 					_ => {
 						arguments.push(Argument::String(mem::take(&mut current_string)));
+						previous_span = expect_ident(
+							&mut stream,
+							"interpolate",
+							previous_span,
+							"`interpolate`, the only supported operand type",
+						)?
+						.span();
 						arguments.push(Argument::Type(parse_ty_or_value(stream, previous_span)?));
 
 						if stream.peek().is_some() {
