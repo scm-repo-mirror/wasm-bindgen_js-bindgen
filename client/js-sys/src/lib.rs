@@ -1,13 +1,8 @@
 #![no_std]
-#![cfg_attr(
-	all(target_feature = "atomics", not(feature = "std")),
-	feature(thread_local)
-)]
+#![cfg_attr(target_feature = "atomics", feature(thread_local))]
 #![cfg_attr(target_arch = "wasm64", feature(simd_wasm64))]
 
 extern crate alloc;
-#[cfg(feature = "std")]
-extern crate std;
 
 mod externref;
 pub mod hazard;
@@ -22,6 +17,9 @@ pub use js_sys_macro::js_sys;
 use crate::externref::EXTERNREF_TABLE;
 use crate::hazard::{Input, Output};
 pub use crate::panic::{panic, UnwrapThrowExt};
+
+#[cfg(not(target_feature = "reference-types"))]
+compile_error!("`js-sys` requires the `reference-types` target feature");
 
 #[repr(transparent)]
 pub struct JsValue {

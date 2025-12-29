@@ -50,9 +50,6 @@
 
 - Linker functionality should live in its own crate so a newer linker versions can support multiple
   versions.
-- We have a custom `LocalKey` replica for non-atomic or non-std builds. It differs because its
-  methods don't take a `'static` lifetime. It would probably be easiest to just align actual Std's
-  `LocalKey` unsafely to not require `'static`.
 - Can we remove custom sections in pre-processing by modifying `.rlib`s?
 - Re-evaluate caching via the linker.
 - Polish LLD linker argument parsing. Maybe learn from [`wasm-component-ld`].
@@ -69,7 +66,7 @@ This is a list of upstream issues that could make our lives significantly easier
 - Stable `asm!` support for Wasm: [rust-lang/rust#136382].
 - `asm!` support with target features: [rust-lang/rust#113221]
 - Verbatim `asm!` parameters: [rust-lang/rust#132083].
-- Better stable proc-macro support
+- Better stable proc-macro support:
   - `quote!`: [rust-lang/rust#54722].
   - Diagnostics: [rust-lang/rust#54140].
   - Execution in non-proc-macro crates: [rust-lang/rust#130856].

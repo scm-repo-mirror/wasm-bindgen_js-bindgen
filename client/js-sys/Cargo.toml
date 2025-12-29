@@ -4,9 +4,6 @@ name = "js-sys"
 rust-version = "1.59"
 version = "0.0.0"
 
-[features]
-std = []
-
 [dependencies]
 js-bindgen = { path = "../js-bindgen" }
 js-sys-macro = { path = "../js-sys-macro" }

@@ -3,36 +3,22 @@ use core::cell::RefCell;
 
 use crate::panic::panic;
 
-#[cfg(not(target_feature = "reference-types"))]
-compile_error!("`js-sys` requires the `reference-types` target feature");
-
 macro_rules! thread_local {
     ($($vis:vis static $name:ident: $ty:ty = $value:expr;)*) => {
-        #[cfg(not(target_feature = "atomics"))]
+        #[cfg_attr(target_feature = "atomics", thread_local)]
         $($vis static $name: LocalKey<$ty> = LocalKey($value);)*
-        #[cfg(all(target_feature = "atomics", not(feature = "std")))]
-        $(
-            #[thread_local]
-            $vis static $name: LocalKey<$ty> = LocalKey($value);
-        )*
-        #[cfg(all(target_feature = "atomics", feature = "std"))]
-        ::std::thread_local! {
-            $($vis static $name: $ty = $value;)*
-        }
     };
 }
 
-#[cfg(not(all(target_feature = "atomics", feature = "std")))]
-pub(crate) struct LocalKey<T: 'static>(T);
+pub(crate) struct LocalKey<T>(T);
 
 #[cfg(not(target_feature = "atomics"))]
-unsafe impl<T: 'static> Send for LocalKey<T> {}
+unsafe impl<T> Send for LocalKey<T> {}
 
 #[cfg(not(target_feature = "atomics"))]
-unsafe impl<T: 'static> Sync for LocalKey<T> {}
+unsafe impl<T> Sync for LocalKey<T> {}
 
-#[cfg(not(all(target_feature = "atomics", feature = "std")))]
-impl<T: 'static> LocalKey<T> {
+impl<T> LocalKey<T> {
 	pub(crate) fn with<F, R>(&self, f: F) -> R
 	where
 		F: FnOnce(&T) -> R,
