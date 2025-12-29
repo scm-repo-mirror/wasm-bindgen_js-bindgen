@@ -33,9 +33,9 @@ fn embed_asm_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 	let assembly = parse_string_arguments(&mut input, Span::mixed_site())?;
 	let output = custom_section("js_bindgen.assembly", &assembly);
 
-	if input.next().is_some() {
+	if let Some(tok) = input.next() {
 		Err(compile_error(
-			Span::mixed_site(),
+			tok.span(),
 			"expected no tokens after string literals and formatting parameters",
 		))
 	} else {
@@ -95,8 +95,7 @@ fn parse_string_arguments(
 			string.push('\n');
 		}
 
-		let lit = parse_string_literal(&mut stream, previous_span, string)?;
-		previous_span = lit.span();
+		previous_span = parse_string_literal(&mut stream, previous_span, string)?.span();
 
 		if stream.peek().is_some() {
 			expect_punct(

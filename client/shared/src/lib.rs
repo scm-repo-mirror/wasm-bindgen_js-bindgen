@@ -88,7 +88,7 @@ pub fn parse_string_literal(
 
 			// Strip starting and ending `"`.
 			let Some(stripped) = lit.strip_prefix('"').and_then(|lit| lit.strip_suffix('"')) else {
-				return Err(compile_error(span, "expecting a string literal"));
+				return Err(compile_error(span, "expected a string literal"));
 			};
 
 			string.reserve(stripped.len());
@@ -167,8 +167,8 @@ pub fn path(
 ) -> impl Iterator<Item = TokenTree> {
 	parts.into_iter().flat_map(move |p| {
 		[
-			TokenTree::from(Punct::new(':', Spacing::Joint)),
-			Punct::new(':', Spacing::Alone).into(),
+			TokenTree::from(punct(':', Spacing::Joint, span)),
+			punct(':', Spacing::Alone, span).into(),
 			Ident::new(p, span).into(),
 		]
 	})
@@ -180,13 +180,26 @@ pub fn path(
 pub fn compile_error<E: Display>(span: Span, error: E) -> TokenStream {
 	TokenStream::from_iter(
 		path(["core", "compile_error"], span).chain([
-			Punct::new('!', Spacing::Alone).into(),
-			Group::new(
+			punct('!', Spacing::Alone, span).into(),
+			group(
 				Delimiter::Parenthesis,
-				TokenTree::from(Literal::string(&error.to_string())).into(),
+				span,
+				iter::once(Literal::string(&error.to_string()).into()),
 			)
 			.into(),
-			Punct::new(';', Spacing::Alone).into(),
+			punct(';', Spacing::Alone, span).into(),
 		]),
 	)
+}
+
+pub fn punct(ch: char, spacing: Spacing, span: Span) -> Punct {
+	let mut p = Punct::new(ch, spacing);
+	p.set_span(span);
+	p
+}
+
+pub fn group(delimiter: Delimiter, span: Span, stream: impl Iterator<Item = TokenTree>) -> Group {
+	let mut g = Group::new(delimiter, stream.collect());
+	g.set_span(span);
+	g
 }

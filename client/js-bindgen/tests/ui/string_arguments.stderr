@@ -1,0 +1,28 @@
+error: requires at least a string argument
+ --> tests/ui/string_arguments.rs:1:1
+  |
+1 | js_bindgen::unsafe_embed_asm!();
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `js_bindgen::unsafe_embed_asm` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: expected a string literal
+ --> tests/ui/string_arguments.rs:4:31
+  |
+4 | js_bindgen::unsafe_embed_asm!(42);
+  |                               ^^
+
+error: escaping `r` is not supported
+ --> tests/ui/string_arguments.rs:7:35
+  |
+7 | js_bindgen::unsafe_embed_asm!("", "\r");
+  |                                   ^^^^
+
+error: expected a `,` after string literal
+  --> tests/ui/string_arguments.rs:10:34
+   |
+10 | js_bindgen::unsafe_embed_asm!("" 5);
+   |                                  ^
+
+error: aborting due to 4 previous errors
+
