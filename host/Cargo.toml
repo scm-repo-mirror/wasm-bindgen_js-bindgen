@@ -1,5 +1,5 @@
 [workspace]
-members = ["linker", "lld-opt"]
+members = ["ld", "wasm-ld-opt"]
 resolver = "2"
 
 [workspace.lints.clippy]

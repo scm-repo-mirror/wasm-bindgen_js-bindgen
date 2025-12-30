@@ -1,6 +1,6 @@
 [package]
 edition = "2024"
-name = "js-bindgen-linker"
+name = "js-bindgen-ld"
 rust-version = "1.91"
 version = "0.0.0"
 

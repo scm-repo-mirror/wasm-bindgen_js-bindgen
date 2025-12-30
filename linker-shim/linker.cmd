@@ -1,5 +1,5 @@
 @echo off
 pushd "%~dp0..\host" || exit /b 1
-cargo run -p js-bindgen-linker -- %*
+cargo run -q -p js-bindgen-ld -- %*
 popd
 exit /b %ERRORLEVEL%

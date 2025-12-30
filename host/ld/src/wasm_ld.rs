@@ -2,7 +2,7 @@ use std::ffi::{OsStr, OsString};
 
 use hashbrown::HashMap;
 
-include!("lld-opt.rs");
+include!("opt.rs");
 
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy)]
@@ -66,7 +66,7 @@ impl WasmLdArguments<'_> {
 				})
 				.next()
 			else {
-				eprintln!("encountered unknown LLD option: `{}`", arg.display());
+				eprintln!("encountered unknown `wasm-ld` option: `{}`", arg.display());
 				continue;
 			};
 

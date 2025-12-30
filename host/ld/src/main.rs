@@ -1,4 +1,4 @@
-mod lld;
+mod wasm_ld;
 
 use std::borrow::Cow;
 use std::ffi::{OsStr, OsString};
@@ -12,22 +12,22 @@ use object::read::archive::ArchiveFile;
 use wasm_encoder::{EntityType, ImportSection, Module, RawSection, Section};
 use wasmparser::{Encoding, Parser, Payload, TypeRef};
 
-use crate::lld::WasmLdArguments;
+use crate::wasm_ld::WasmLdArguments;
 
 fn main() {
 	let args: Vec<_> = env::args_os().collect();
-	let lld_args = WasmLdArguments::new(&args[1..]);
+	let wasm_ld_args = WasmLdArguments::new(&args[1..]);
 
-	if lld_args
+	if wasm_ld_args
 		.arg_single("flavor")
 		.filter(|v| *v == "wasm")
 		.is_none()
 	{
-		panic!("the `js-bindgen-linker` should only be used when compiling to a Wasm target")
+		panic!("the `js-bindgen-ld` should only be used when compiling to a Wasm target")
 	}
 
 	// With Wasm32 no argument is passed, but Wasm64 requires `-mwasm64`.
-	let arch_str = if let Some(m) = lld_args.arg_single("m") {
+	let arch_str = if let Some(m) = wasm_ld_args.arg_single("m") {
 		if m == "wasm32" || m == "wasm64" {
 			Cow::Borrowed(m)
 		} else {
@@ -38,17 +38,17 @@ fn main() {
 	};
 
 	let output_path = Path::new(
-		lld_args
+		wasm_ld_args
 			.arg_single("o")
 			.expect("output path argument should be present"),
 	);
 
-	// Here we store additional arguments we want to pass to LLD.
+	// Here we store additional arguments we want to pass to `wasm-ld`.
 	let mut add_args: Vec<OsString> = Vec::new();
 
 	// Extract path to the main memory if user-specified, otherwise force export
 	// with our own path.
-	let main_memory = match lld_args.arg_single("import-memory=") {
+	let main_memory = match wasm_ld_args.arg_single("import-memory=") {
 		Some(arg) => {
 			let arg = arg
 				.to_str()
@@ -64,7 +64,7 @@ fn main() {
 			}
 		}
 		None => {
-			if lld_args.arg_flag("import-memory") {
+			if wasm_ld_args.arg_flag("import-memory") {
 				eprintln!("found `--import-memory`");
 				eprintln!(
 					"`js-bindgen` already imports the main memory by default under \
@@ -85,7 +85,7 @@ fn main() {
 	};
 
 	// Extract embedded assembly from object files.
-	for input in lld_args.inputs() {
+	for input in wasm_ld_args.inputs() {
 		// We found a UNIX archive.
 		if input.as_encoded_bytes().ends_with(b".rlib") {
 			let archive_path = Path::new(&input);
