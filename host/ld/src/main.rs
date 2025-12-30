@@ -10,7 +10,7 @@ use std::{env, fs};
 use hashbrown::{HashMap, HashSet};
 use object::read::archive::ArchiveFile;
 use wasm_encoder::{EntityType, ImportSection, Module, RawSection, Section};
-use wasmparser::{Encoding, Parser, Payload, TypeRef};
+use wasmparser::{CustomSectionReader, Encoding, Parser, Payload, TypeRef};
 
 use crate::wasm_ld::WasmLdArguments;
 
@@ -208,20 +208,10 @@ fn process_object(
 		if let Payload::CustomSection(c) = payload
 			&& c.name() == "js_bindgen.assembly"
 		{
-			let mut data = c.data();
-
-			while let Some(length) = data.get(..4) {
-				data = &data[4..];
-				let length = u32::from_le_bytes(length.try_into().unwrap()) as usize;
-
-				if length == 0 {
+			for assembly in CustomSectionParser::new(c) {
+				if assembly.is_empty() {
 					continue;
 				}
-
-				let assembly = data
-					.get(..length)
-					.expect("invalid length encoding for assembly");
-				data = &data[length..];
 
 				let asm_object = assembly_to_object(arch_str, assembly)
 					.expect("compiling assembly should be valid");
@@ -233,11 +223,6 @@ fn process_object(
 
 				add_args.push(asm_path.into());
 			}
-
-			assert!(
-				data.is_empty(),
-				"found left over bytes in assembly: {data:?}"
-			);
 		}
 	}
 }
@@ -388,29 +373,23 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) {
 					.split_once('.')
 					.expect("custom section name should be formatted correctly");
 
-				let mut data = c.data();
-				let length = data
-					.get(..4)
+				let mut parser = CustomSectionParser::new(c);
+				let js = parser
+					.next()
 					.unwrap_or_else(|| panic!("found no JS import for `{module}:{name}`"));
-				data = &data[4..];
-				let length = u32::from_le_bytes(length.try_into().unwrap()) as usize;
 
-				if length == 0 {
+				if js.is_empty() {
 					panic!("found empty JS import for `{module}:{name}`")
 				}
 
-				let js = data.get(..length).unwrap_or_else(|| {
-					panic!("invalid length encoding in JS import for `{module}:{name}`")
-				});
-				data = &data[length..];
-
-				assert!(
-					data.is_empty(),
-					"found multiple JS imports for `{module}:{name}`\n\tJS Import 1:\n{}\n\tJS \
-					 Import 2:\n{}",
-					String::from_utf8_lossy(js),
-					String::from_utf8_lossy(data),
-				);
+				if let Some(new_js) = parser.next() {
+					panic!(
+						"found multiple JS imports for `{module}:{name}`\n\tJS Import \
+						 1:\n{}\n\tJS Import 2:\n{}",
+						String::from_utf8_lossy(js),
+						String::from_utf8_lossy(new_js),
+					);
+				}
 
 				if expected_import
 					.get_mut(module)
@@ -504,4 +483,43 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) {
 		js_output,
 	)
 	.expect("output JS file should be writable");
+}
+
+struct CustomSectionParser<'cs> {
+	name: &'cs str,
+	data: &'cs [u8],
+}
+
+impl<'cs> CustomSectionParser<'cs> {
+	fn new(custom_section: CustomSectionReader<'cs>) -> Self {
+		Self {
+			name: custom_section.name(),
+			data: custom_section.data(),
+		}
+	}
+}
+
+impl<'cs> Iterator for CustomSectionParser<'cs> {
+	type Item = &'cs [u8];
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if let Some(length) = self.data.get(..4) {
+			self.data = &self.data[4..];
+			let length = u32::from_le_bytes(length.try_into().unwrap()) as usize;
+
+			let data = self.data.get(..length).unwrap_or_else(|| {
+				panic!("invalid length encoding in custom section `{}`", self.name)
+			});
+			self.data = &self.data[length..];
+
+			Some(data)
+		} else if self.data.is_empty() {
+			None
+		} else {
+			panic!(
+				"found left over bytes in custom section `{}`: {:?}",
+				self.name, self.data
+			);
+		}
+	}
 }
