@@ -16,7 +16,7 @@ pub use js_sys_macro::js_sys;
 
 use crate::externref::EXTERNREF_TABLE;
 use crate::hazard::{Input, Output};
-pub use crate::panic::{panic, UnwrapThrowExt};
+pub use crate::panic::{UnwrapThrowExt, panic};
 
 #[cfg(not(target_feature = "reference-types"))]
 compile_error!("`js-sys` requires the `reference-types` target feature");

@@ -1,4 +1,4 @@
-(module $basic-29989dcc21132e07.wasm
+(module $basic-530df7d62946cc87.wasm
   (type (;0;) (func (param i32 i32) (result externref)))
   (type (;1;) (func (param externref)))
   (type (;2;) (func))
@@ -78,7 +78,7 @@
             i32.gt_u
             select
             local.tee 4
-            call $_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17hb61ecc0d932073e2E
+            call $_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17h4cf4f56d2c6e3149E
             local.get 0
             i32.load offset=4
             br_if 2 (;@2;)
@@ -126,7 +126,7 @@
     call $_ZN4core6result13unwrap_failed17hf1b7344c4a305aa0E
     unreachable
   )
-  (func $_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17hb61ecc0d932073e2E (;4;) (type 3) (param i32 i32 i32 i32)
+  (func $_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17h4cf4f56d2c6e3149E (;4;) (type 3) (param i32 i32 i32 i32)
     (local i32 i32 i32 i32)
     block ;; label = @1
       block ;; label = @2

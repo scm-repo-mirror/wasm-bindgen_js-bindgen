@@ -2,6 +2,25 @@
 members = ["js-bindgen", "js-sys-macro", "ld", "shared", "wasm-ld-opt"]
 resolver = "2"
 
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+
+[workspace.dependencies]
+anyhow = "1"
+hashbrown = "0.16"
+js-bindgen-shared = { path = "shared" }
+object = { version = "0.38", default-features = false, features = ["archive", "read_core", "std"] }
+prettyplease = "0.2"
+proc-macro2 = { version = "1", default-features = false }
+quote = { version = "1", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+similar-asserts = { version = "1", default-features = false }
+syn = { version = "2", default-features = false, features = ["parsing", "printing"] }
+ui_test = { version = "0.30", default-features = false, features = ["rustc"] }
+wasm-encoder = { version = "0.243", default-features = false, features = ["wasmparser"] }
+wasmparser = { version = "0.243", default-features = false }
+
 [workspace.lints.clippy]
 obfuscated_if_else = "allow"
 tabs_in_doc_comments = "allow"

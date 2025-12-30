@@ -24,7 +24,7 @@ use std::{iter, mem};
 
 use js_bindgen_shared::*;
 use proc_macro::{
-	token_stream, Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree,
+	Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree, token_stream,
 };
 
 #[cfg_attr(not(test), proc_macro)]
@@ -181,7 +181,7 @@ fn parse_string_arguments(
 							return Err(compile_error(
 								previous_span,
 								"no corresponding closing bracers found",
-							))
+							));
 						}
 						_ => {
 							if !current_string.is_empty() {
@@ -225,7 +225,7 @@ fn parse_string_arguments(
 									return Err(compile_error(
 										previous_span,
 										"expected an argument for `{}`",
-									))
+									));
 								}
 							}
 						}
@@ -234,7 +234,7 @@ fn parse_string_arguments(
 						return Err(compile_error(
 							previous_span,
 							"no corresponding closing bracers found",
-						))
+						));
 					}
 				},
 				'}' => match chars.next() {
@@ -244,7 +244,7 @@ fn parse_string_arguments(
 						return Err(compile_error(
 							previous_span,
 							"no corresponding opening bracers found",
-						))
+						));
 					}
 				},
 				c => current_string.push(c),
@@ -532,9 +532,15 @@ fn custom_section(name: &str, data: &[Argument]) -> TokenStream {
 		group(
 			Delimiter::Bracket,
 			[
-				Ident::new("link_section", span).into(),
-				Punct::new('=', Spacing::Alone).into(),
-				Literal::string(name).into(),
+				Ident::new("unsafe", span).into(),
+				group(
+					Delimiter::Parenthesis,
+					[
+						Ident::new("link_section", span).into(),
+						Punct::new('=', Spacing::Alone).into(),
+						Literal::string(name).into(),
+					],
+				),
 			],
 		),
 	];

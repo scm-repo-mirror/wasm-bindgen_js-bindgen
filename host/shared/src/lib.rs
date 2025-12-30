@@ -7,7 +7,7 @@ use std::fmt::Display;
 use std::iter::{self, Peekable};
 
 use proc_macro::{
-	token_stream, Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree,
+	Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree, token_stream,
 };
 
 pub fn parse_ty_or_value(
@@ -125,7 +125,7 @@ pub fn parse_string_literal(
 								return Err(compile_error(
 									span,
 									format!("escaping `{c}` is not supported"),
-								))
+								));
 							}
 						},
 						c => string.push(c),

@@ -74,7 +74,7 @@ js_bindgen::js_import!(
 	"new WebAssembly.Table({{ initial: 1, element: \"externref\" }})",
 );
 
-extern "C" {
+unsafe extern "C" {
 	#[link_name = "js_sys.externref.grow"]
 	fn grow(size: i32) -> i32;
 	#[link_name = "js_sys.externref.remove"]
@@ -111,7 +111,7 @@ impl Slab {
 	}
 }
 
-#[export_name = "js_sys.externref.next"]
+#[unsafe(export_name = "js_sys.externref.next")]
 extern "C" fn next() -> i32 {
 	EXTERNREF_TABLE.with(|slab| slab.try_borrow_mut().unwrap().next())
 }

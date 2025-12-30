@@ -192,3 +192,21 @@ Shipping this to users would be ideal because they are just Rust libraries.
 
 These tools are very well maintained, even though at the time of writing they are missing compiling
 relocatable object files which we would have to contribute.
+
+### Why Is the MSRV So High?
+
+`js-sys` currently requires the reference types proposal, which Rust enabled by default since v1.82.
+But detection via `#[cfg(target_feature = "reference-types")]` was only possible since its
+stabilization in v1.84.
+
+Detection via `build.rs` is also not possible, as between v1.82 and v1.84 `reference-types` would
+not show up in `CARGO_CFG_TARGET_FEATURE` due to the target feature being unstable.
+
+So to support any Rust version lower than v1.84 we need to depend on e.g. [`rustversion`], which we
+would prefer to avoid until actually necessary. The jump from v1.84 to v1.85 was only made to get to
+edition 2024 and is not a blocker to move to a lower MSRV.
+
+Moving to Rust v1.56 is currently the theoretical minimum and is feasible with very minimal code
+changes.
+
+[`rustversion`]: https://crates.io/crates/rustversion

@@ -25,7 +25,7 @@ use std::iter::Peekable;
 
 use js_bindgen_shared::*;
 use proc_macro::{
-	token_stream, Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree,
+	Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree, token_stream,
 };
 
 #[cfg_attr(not(test), proc_macro_attribute)]
@@ -87,7 +87,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 				return Err(compile_error(
 					ident.span(),
 					"expected `js_sys` or `namespace`",
-				))
+				));
 			}
 		};
 
@@ -113,7 +113,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			return Err(compile_error(
 				r#extern.span(),
 				"expected `\"C\"` after `extern`",
-			))
+			));
 		}
 	};
 
@@ -392,6 +392,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 		});
 
 		let import = [
+			Ident::new("unsafe", name.span()).into(),
 			TokenTree::from(Ident::new("extern", name.span())),
 			Literal::string("C").into(),
 			Group::new(

@@ -2,13 +2,25 @@
 members = ["js-sys", "web-sys"]
 resolver = "2"
 
-[package]
-edition = "2021"
-name = "examples"
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
 
-[dev-dependencies]
+[workspace.dependencies]
+js-bindgen = { path = "../host/js-bindgen" }
+js-sys = { path = "js-sys" }
+js-sys-macro = { path = "../host/js-sys-macro" }
 mini-alloc = "1"
 web-sys = { path = "web-sys" }
+
+[package]
+edition = { workspace = true }
+name = "examples"
+publish = false
+
+[dev-dependencies]
+mini-alloc = { workspace = true }
+web-sys = { workspace = true }
 
 [[example]]
 crate-type = ["cdylib"]
@@ -16,9 +28,6 @@ name = "basic"
 
 [workspace.lints.rust]
 linker_messages = "warn"
-
-[workspace.lints.clippy]
-tabs_in_doc_comments = "allow"
 
 [lints]
 workspace = true

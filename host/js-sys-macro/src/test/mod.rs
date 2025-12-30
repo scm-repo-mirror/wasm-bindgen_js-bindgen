@@ -45,7 +45,7 @@ fn basic() {
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.log"]
 					fn log(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
@@ -89,7 +89,7 @@ fn namespace() {
 
 				::js_sys::js_bindgen::js_import!(name = "console.log", "console.log");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.console.log"]
 					fn log(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
@@ -133,7 +133,7 @@ fn js_sys() {
 
 				crate::js_bindgen::js_import!(name = "log", "log");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.log"]
 					fn log(data: <&JsValue as crate::hazard::Input>::Type);
 				}
@@ -185,7 +185,7 @@ fn two_parameters() {
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.log"]
 					fn log(
 						data1: <&JsValue as ::js_sys::hazard::Input>::Type,
@@ -229,7 +229,7 @@ fn empty() {
 
 				::js_sys::js_bindgen::js_import!(name = "log", "log");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.log"]
 					fn log();
 				}
@@ -274,7 +274,7 @@ fn js_name() {
 
 				::js_sys::js_bindgen::js_import!(name = "logx", "log");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.logx"]
 					fn logx(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
@@ -317,7 +317,7 @@ fn js_import() {
 					interpolate <&JsValue as ::js_sys::hazard::Input>::CONV,
 				);
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.logx"]
 					fn logx(data: <&JsValue as ::js_sys::hazard::Input>::Type);
 				}
@@ -360,7 +360,7 @@ fn r#return() {
 
 				::js_sys::js_bindgen::js_import!(name = "is_nan", "is_nan");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.is_nan"]
 					fn is_nan() -> <JsValue as ::js_sys::hazard::Output>::Type;
 				}
@@ -410,7 +410,7 @@ fn pointer() {
 
 				::js_sys::js_bindgen::js_import!(name = "array", "array");
 
-				extern "C" {
+				unsafe extern "C" {
 					#[link_name = "test_crate.array"]
 					fn array(
 						array: <*const u8 as ::js_sys::hazard::Input>::Type,

@@ -41,7 +41,7 @@ fn basic() {
 				#[repr(C)]
 				struct Layout([u8; 4], [u8; 7]);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(::core::primitive::u32::to_le_bytes(LEN), ARR0);
 			};
 		},
@@ -62,7 +62,7 @@ fn minimum() {
 				#[repr(C)]
 				struct Layout([u8; 4]);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(::core::primitive::u32::to_le_bytes(LEN));
 			};
 		},
@@ -87,7 +87,7 @@ fn no_newline() {
 				#[repr(C)]
 				struct Layout([u8; 4], [u8; 3]);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(::core::primitive::u32::to_le_bytes(LEN), ARR0);
 			};
 		},
@@ -136,7 +136,7 @@ fn merge() {
 					[u8; 17],
 				);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(
 					::core::primitive::u32::to_le_bytes(LEN),
 					ARR0,
@@ -180,7 +180,7 @@ fn cfg() {
 				#[repr(C)]
 				struct Layout([u8; 4], [u8; 6], #[cfg(test)] [u8; 6], [u8; 5]);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(
 					::core::primitive::u32::to_le_bytes(LEN),
 					ARR0,
@@ -211,7 +211,7 @@ fn escape() {
 				#[repr(C)]
 				struct Layout([u8; 4], [u8; 4]);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(::core::primitive::u32::to_le_bytes(LEN), ARR0);
 			};
 		},
@@ -238,7 +238,7 @@ fn interpolate() {
 				#[repr(C)]
 				struct Layout([u8; 4], [u8; LEN0]);
 
-				#[link_section = "js_bindgen.assembly"]
+				#[unsafe(link_section = "js_bindgen.assembly")]
 				static CUSTOM_SECTION: Layout = Layout(::core::primitive::u32::to_le_bytes(LEN), ARR0);
 			};
 		},
@@ -266,7 +266,7 @@ fn import() {
 				#[repr(C)]
 				struct Layout([u8; 4], [u8; 7]);
 
-				#[link_section = "js_bindgen.import.test_crate.foo"]
+				#[unsafe(link_section = "js_bindgen.import.test_crate.foo")]
 				static CUSTOM_SECTION: Layout = Layout(::core::primitive::u32::to_le_bytes(LEN), ARR0);
 			};
 		},
