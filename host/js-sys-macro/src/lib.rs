@@ -121,10 +121,11 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 	let mut fns = fns_group.stream().into_iter().peekable();
 	let mut output = TokenStream::new();
 
-	while let Some(tok) = fns.peek() {
+	while fns.peek().is_some() {
 		let mut js_name = None;
+		let mut cfg = None;
 
-		if let TokenTree::Punct(p) = tok {
+		while let Some(TokenTree::Punct(p)) = fns.peek() {
 			if p.as_char() == '#' {
 				let hash = expect_punct(
 					&mut fns,
@@ -135,31 +136,65 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 				)?;
 				let meta = expect_group(&mut fns, Delimiter::Bracket, hash.span(), "`[...]`")?;
 				let mut inner = meta.stream().into_iter();
-				let js_sys =
-					expect_ident(&mut inner, "js_sys", meta.span(), "`js_sys(...)", false)?;
-				let meta =
-					expect_group(&mut inner, Delimiter::Parenthesis, js_sys.span(), "`(...)`")?;
-				let mut inner = meta.stream().into_iter();
-				let attribute = parse_ident(&mut inner, meta.span(), "`<attribute> = \"...\"`")?;
-				let equal = expect_punct(
-					&mut inner,
-					'=',
-					attribute.span(),
-					"<attribute> `= \"...\"`",
-					true,
-				)?;
-				let (_, name) = parse_string_literal(
-					&mut inner,
-					equal.span(),
-					"<attribute> `= \"...\"`",
-					true,
-				)?;
+				let name = parse_ident(&mut inner, meta.span(), "`attribute(...)`")?;
 
-				js_name = Some(match attribute.to_string().as_str() {
-					"js_name" => JsName::Name(name),
-					"js_import" => JsName::Import(name),
-					_ => return Err(compile_error(attribute.span(), "`js_name` or `js_import`")),
-				})
+				match name.to_string().as_str() {
+					"cfg" => {
+						if cfg.is_some() {
+							return Err(compile_error(
+								name.span(),
+								"multiple `js_sys` attributes are not supported",
+							));
+						}
+
+						cfg = Some([TokenTree::from(hash), meta.into()]);
+					}
+					"js_sys" => {
+						if js_name.is_some() {
+							return Err(compile_error(
+								name.span(),
+								"multiple `js_sys` attributes are not supported",
+							));
+						}
+
+						let meta = expect_group(
+							&mut inner,
+							Delimiter::Parenthesis,
+							name.span(),
+							"`(...)`",
+						)?;
+						let mut inner = meta.stream().into_iter();
+						let attribute =
+							parse_ident(&mut inner, meta.span(), "`<attribute> = \"...\"`")?;
+						let equal = expect_punct(
+							&mut inner,
+							'=',
+							attribute.span(),
+							"<attribute> `= \"...\"`",
+							true,
+						)?;
+						let (_, name) = parse_string_literal(
+							&mut inner,
+							equal.span(),
+							"<attribute> `= \"...\"`",
+							true,
+						)?;
+
+						js_name = Some(match attribute.to_string().as_str() {
+							"js_name" => JsName::Name(name),
+							"js_import" => JsName::Import(name),
+							_ => {
+								return Err(compile_error(
+									attribute.span(),
+									"`js_name` or `js_import`",
+								));
+							}
+						})
+					}
+					_ => {
+						return Err(compile_error(name.span(), "unsupported attribute found"));
+					}
+				}
 			}
 		}
 
@@ -454,6 +489,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			call.push(Punct::new(';', Spacing::Alone).into());
 		}
 
+		output.extend(cfg.into_iter().flatten());
 		output.extend(visibility.map(TokenTree::from));
 		output.extend([
 			TokenTree::from(r#fn),

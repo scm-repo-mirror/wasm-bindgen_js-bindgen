@@ -77,12 +77,8 @@ js_bindgen::js_import!(
 	"(ptr, len) => {{",
 	#[cfg(target_arch = "wasm32")]
 	"	ptr >>>= 0",
-	#[cfg(target_arch = "wasm64")]
-	"	ptr = Number(ptr)",
 	#[cfg(target_arch = "wasm32")]
 	"	len >>>= 0",
-	#[cfg(target_arch = "wasm64")]
-	"	len = Number(len)",
 	"",
 	"	const decoder = new TextDecoder(\"utf-8\", {{",
 	"		fatal: false,",
@@ -99,8 +95,13 @@ js_bindgen::js_import!(
 
 #[js_sys(js_sys = crate)]
 extern "C" {
+	#[cfg(target_arch = "wasm32")]
 	#[js_sys(js_import = "string.decode")]
 	fn string_decode(array: *const u8, len: usize) -> JsString;
+
+	#[cfg(target_arch = "wasm64")]
+	#[js_sys(js_import = "string.decode")]
+	fn string_decode(array: *const u8, len: f64) -> JsString;
 }
 
 #[repr(transparent)]
@@ -109,7 +110,12 @@ pub struct JsString(JsValue);
 impl JsString {
 	#[allow(clippy::should_implement_trait)]
 	pub fn from_str(string: &str) -> Self {
-		string_decode(string.as_ptr(), string.len())
+		#[cfg(target_arch = "wasm32")]
+		let len = string.len();
+		#[cfg(target_arch = "wasm64")]
+		let len = string.len() as f64;
+
+		string_decode(string.as_ptr(), len)
 	}
 }
 
@@ -166,22 +172,44 @@ unsafe impl Input for usize {
 	}
 }
 
-unsafe impl Input for *const u8 {
+unsafe impl Input for f64 {
 	const IMPORT_FUNC: &str = "";
-	#[cfg(target_arch = "wasm32")]
-	const IMPORT_TYPE: &str = "i32";
-	#[cfg(target_arch = "wasm64")]
-	const IMPORT_TYPE: &str = "i64";
-	#[cfg(target_arch = "wasm32")]
-	const TYPE: &str = "i32";
-	#[cfg(target_arch = "wasm64")]
-	const TYPE: &str = "i64";
+	const IMPORT_TYPE: &str = "f64";
+	const TYPE: &str = "f64";
 	const CONV: &str = "";
 
 	type Type = Self;
 
 	fn into_raw(self) -> Self::Type {
 		self
+	}
+}
+
+unsafe impl Input for *const u8 {
+	const IMPORT_FUNC: &str = "";
+	#[cfg(target_arch = "wasm32")]
+	const IMPORT_TYPE: &str = "i32";
+	#[cfg(target_arch = "wasm64")]
+	const IMPORT_TYPE: &str = "f64";
+	#[cfg(target_arch = "wasm32")]
+	const TYPE: &str = "i32";
+	#[cfg(target_arch = "wasm64")]
+	const TYPE: &str = "f64";
+	const CONV: &str = "";
+
+	#[cfg(target_arch = "wasm32")]
+	type Type = Self;
+	#[cfg(target_arch = "wasm64")]
+	type Type = f64;
+
+	#[cfg(target_arch = "wasm32")]
+	fn into_raw(self) -> Self::Type {
+		self
+	}
+
+	#[cfg(target_arch = "wasm64")]
+	fn into_raw(self) -> Self::Type {
+		self as usize as f64
 	}
 }
 

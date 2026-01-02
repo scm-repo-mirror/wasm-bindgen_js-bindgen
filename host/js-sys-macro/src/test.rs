@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-fn test_js_bindgen(attr: TokenStream, item: TokenStream, expected: TokenStream) {
+fn test(attr: TokenStream, item: TokenStream, expected: TokenStream) {
 	let output = crate::js_sys(attr, item);
 
 	let output = syn::parse2(output).unwrap();
@@ -14,7 +14,7 @@ fn test_js_bindgen(attr: TokenStream, item: TokenStream, expected: TokenStream) 
 
 #[test]
 fn basic() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -58,7 +58,7 @@ fn basic() {
 
 #[test]
 fn namespace() {
-	test_js_bindgen(
+	test(
 		quote! { namespace = "console" },
 		quote! {
 			extern "C" {
@@ -102,7 +102,7 @@ fn namespace() {
 
 #[test]
 fn js_sys() {
-	test_js_bindgen(
+	test(
 		quote! { js_sys = crate },
 		quote! {
 			extern "C" {
@@ -146,7 +146,7 @@ fn js_sys() {
 
 #[test]
 fn two_parameters() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -206,7 +206,7 @@ fn two_parameters() {
 
 #[test]
 fn empty() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -242,7 +242,7 @@ fn empty() {
 
 #[test]
 fn js_name() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -287,7 +287,7 @@ fn js_name() {
 
 #[test]
 fn js_import() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -330,7 +330,7 @@ fn js_import() {
 
 #[test]
 fn r#return() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -373,7 +373,7 @@ fn r#return() {
 
 #[test]
 fn pointer() {
-	test_js_bindgen(
+	test(
 		TokenStream::new(),
 		quote! {
 			extern "C" {
@@ -421,6 +421,44 @@ fn pointer() {
 				<JsString as ::js_sys::hazard::Output>::from_raw(unsafe {
 					array(<*const u8 as ::js_sys::hazard::Input>::into_raw(array))
 				})
+			}
+		},
+	);
+}
+
+#[test]
+fn cfg() {
+	test(
+		TokenStream::new(),
+		quote! {
+			extern "C" {
+				#[cfg(test)]
+				pub fn log();
+			}
+		},
+		quote! {
+			#[cfg(test)]
+			pub fn log() {
+				::js_sys::js_bindgen::unsafe_embed_asm!(
+					".import_module test_crate.import.log, test_crate",
+					".import_name test_crate.import.log, log",
+					".functype test_crate.import.log () -> ()",
+					"",
+					".globl test_crate.log",
+					"test_crate.log:",
+					"\t.functype test_crate.log () -> ()",
+					"\tcall test_crate.import.log",
+					"\tend_function",
+				);
+
+				::js_sys::js_bindgen::js_import!(name = "log", "log");
+
+				unsafe extern "C" {
+					#[link_name = "test_crate.log"]
+					fn log();
+				}
+
+				unsafe { log() };
 			}
 		},
 	);
