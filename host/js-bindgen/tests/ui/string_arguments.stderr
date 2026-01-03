@@ -94,10 +94,10 @@ error: expected `*const`
    |                                                 ^^^^
 
 error: expected a value
-  --> tests/ui/string_arguments.rs:50:49
+  --> tests/ui/string_arguments.rs:50:37
    |
 50 | js_bindgen::unsafe_embed_asm!("{}", interpolate #);
-   |                                                 ^
+   |                                     ^^^^^^^^^^^^^
 
 error: type not completed, missing `>`
   --> tests/ui/string_arguments.rs:53:49
@@ -106,10 +106,10 @@ error: type not completed, missing `>`
    |                                                 ^^^^^
 
 error: expected a value
-  --> tests/ui/string_arguments.rs:56:48
+  --> tests/ui/string_arguments.rs:56:37
    |
 56 | js_bindgen::unsafe_embed_asm!("{}", interpolate,);
-   |                                                ^
+   |                                     ^^^^^^^^^^^^
 
 error: expected a `,` between formatting parameters
   --> tests/ui/string_arguments.rs:59:53

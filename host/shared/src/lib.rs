@@ -35,44 +35,52 @@ pub fn parse_ty_or_value(
 	mut stream: &mut Peekable<token_stream::IntoIter>,
 	previous_span: Span,
 	expected: &str,
-) -> Result<Vec<TokenTree>, TokenStream> {
+) -> Result<(SpanRange, Vec<TokenTree>), TokenStream> {
 	let mut ty = Vec::new();
 	let mut span = SpanRange::from(previous_span);
 
-	match stream.peek() {
-		Some(TokenTree::Punct(p)) => {
-			if p.as_char() == '&' {
-				ty.push(stream.next().unwrap());
-			} else if p.as_char() == '*' {
-				let star = stream.next().unwrap();
-				let r#const = expect_ident(&mut stream, "const", star.span(), "`*const`", true)?;
-				ty.extend_from_slice(&[star, r#const.into()]);
+	if let Some(tok) = stream.peek() {
+		span.start = tok.span();
+
+		match tok {
+			TokenTree::Punct(p) => {
+				if p.as_char() == '&' {
+					ty.push(stream.next().unwrap());
+				} else if p.as_char() == '*' {
+					let star = stream.next().unwrap();
+					let r#const =
+						expect_ident(&mut stream, "const", star.span(), "`*const`", true)?;
+					span.end = r#const.span();
+					ty.extend_from_slice(&[star, r#const.into()]);
+				}
 			}
+			TokenTree::Literal(_) => return Ok((span, vec![stream.next().unwrap()])),
+			_ => (),
 		}
-		Some(TokenTree::Literal(_)) => return Ok(vec![stream.next().unwrap()]),
-		_ => (),
 	}
 
 	while let Some(tok) = stream.peek() {
 		match tok {
-			TokenTree::Ident(_) | TokenTree::Group(_) => ty.push(stream.next().unwrap()),
-			TokenTree::Punct(p) if p.as_char() == '<' => {
-				ty.extend(parse_angular(&mut stream, previous_span)?)
-			}
-			TokenTree::Punct(p) if [':', '.', '!'].contains(&p.as_char()) => {
+			TokenTree::Ident(_) | TokenTree::Group(_) => {
+				span.end = tok.span();
 				ty.push(stream.next().unwrap())
 			}
-			tok => {
-				span = tok.span().into();
-				break;
+			TokenTree::Punct(p) if p.as_char() == '<' => {
+				ty.extend(parse_angular(&mut stream, previous_span)?);
+				span.end = ty.last().unwrap().span();
 			}
+			TokenTree::Punct(p) if [':', '.', '!'].contains(&p.as_char()) => {
+				span.end = p.span();
+				ty.push(stream.next().unwrap())
+			}
+			_ => break,
 		}
 	}
 
 	if ty.is_empty() {
 		Err(compile_error(span, format!("expected {expected}")))
 	} else {
-		Ok(ty)
+		Ok((span, ty))
 	}
 }
 
@@ -236,13 +244,19 @@ pub fn expect_punct(
 
 pub fn path(
 	parts: impl IntoIterator<Item = &'static str>,
-	span: Span,
+	span: impl Into<SpanRange>,
 ) -> impl Iterator<Item = TokenTree> {
+	let span = span.into();
+
 	parts.into_iter().flat_map(move |p| {
 		[
-			TokenTree::from(punct(':', Spacing::Joint, span)),
-			punct(':', Spacing::Alone, span).into(),
-			Ident::new(p, span).into(),
+			TokenTree::from(punct(':', Spacing::Joint, span.start)),
+			punct(':', Spacing::Alone, span.start).into(),
+			if let Some(p) = p.strip_prefix("r#") {
+				Ident::new_raw(p, span.end).into()
+			} else {
+				Ident::new(p, span.end).into()
+			},
 		]
 	})
 }

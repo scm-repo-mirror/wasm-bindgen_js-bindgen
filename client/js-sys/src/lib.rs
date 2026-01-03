@@ -51,6 +51,7 @@ unsafe impl Input for &JsValue {
 	const IMPORT_TYPE: &'static str = "externref";
 	const TYPE: &'static str = "i32";
 	const CONV: &'static str = "call js_sys.externref.get";
+	const JS_CONV: &'static str = "";
 
 	type Type = i32;
 
@@ -75,11 +76,6 @@ unsafe impl Output for JsValue {
 js_bindgen::embed_js!(
 	name = "string.decode",
 	"(ptr, len) => {{",
-	#[cfg(target_arch = "wasm32")]
-	"	ptr >>>= 0",
-	#[cfg(target_arch = "wasm32")]
-	"	len >>>= 0",
-	"",
 	"	const decoder = new TextDecoder(\"utf-8\", {{",
 	"		fatal: false,",
 	"		ignoreBOM: false,",
@@ -132,6 +128,7 @@ unsafe impl Input for &JsString {
 	const IMPORT_TYPE: &'static str = "externref";
 	const TYPE: &'static str = "i32";
 	const CONV: &'static str = "call js_sys.externref.get";
+	const JS_CONV: &'static str = "";
 
 	type Type = i32;
 
@@ -164,6 +161,10 @@ unsafe impl Input for usize {
 	#[cfg(target_arch = "wasm64")]
 	const TYPE: &str = "i64";
 	const CONV: &str = "";
+	#[cfg(target_arch = "wasm32")]
+	const JS_CONV: &str = " >>>= 0";
+	#[cfg(target_arch = "wasm64")]
+	const JS_CONV: &str = "";
 
 	type Type = Self;
 
@@ -177,6 +178,7 @@ unsafe impl Input for f64 {
 	const IMPORT_TYPE: &str = "f64";
 	const TYPE: &str = "f64";
 	const CONV: &str = "";
+	const JS_CONV: &str = "";
 
 	type Type = Self;
 
@@ -196,6 +198,10 @@ unsafe impl Input for *const u8 {
 	#[cfg(target_arch = "wasm64")]
 	const TYPE: &str = "f64";
 	const CONV: &str = "";
+	#[cfg(target_arch = "wasm32")]
+	const JS_CONV: &str = " >>>= 0";
+	#[cfg(target_arch = "wasm64")]
+	const JS_CONV: &str = "";
 
 	#[cfg(target_arch = "wasm32")]
 	type Type = Self;
@@ -211,10 +217,4 @@ unsafe impl Input for *const u8 {
 	fn into_raw(self) -> Self::Type {
 		self as usize as f64
 	}
-}
-
-#[js_sys(js_sys = crate)]
-extern "C" {
-	#[js_sys(js_name = "isNaN")]
-	pub fn is_nan() -> JsValue;
 }

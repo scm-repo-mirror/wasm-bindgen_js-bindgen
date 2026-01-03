@@ -8,6 +8,8 @@
 
 # High Priority
 
+- Escape namespaces and function names if they are not valid JS identifiers.
+- Test raw Rust identifiers in function and parameter names.
 - Allocate slots on the `externref` table in batches.
 - Determine what to do with `js_sys::UnwrapThrowExt`. Avoiding the panic machinery is nice for some
   very niche use-cases but it might be very annoying for most users. Maybe hide it behind a `cfg`
@@ -29,6 +31,7 @@
 
 # Medium Priority
 
+- Clean up output JS parameter conversions.
 - Provide an absolutely minimal allocator.
 - The `js_sys` proc-macro should remove the `extern "C" { ... }` part of the input on error to avoid
   triggering the `unsafe` requirement downstream.
@@ -77,6 +80,9 @@ This is a list of upstream issues that could make our lives significantly easier
 - Link internal functions without exporting them: [rust-lang/rust#29603] or [rust-lang/rfcs#3834].
 - Our linker warnings should show up for users: [rust-lang/rust#136096].
 - Safe slice to array conversion: [rust-lang/rust#133508].
+- `TextDe/Encoder` could support `SharedArrayBuffer`s:
+  - [Chrome Bug](https://issues.chromium.org/issues/40102463)
+  - [Firefox Bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1561594)
 
 [llvm/llvm-project#136594]: https://github.com/llvm/llvm-project/issues/136594
 [rust-lang/rust#136382]: https://github.com/rust-lang/rust/issues/136382

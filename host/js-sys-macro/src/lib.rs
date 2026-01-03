@@ -65,11 +65,8 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 					));
 				}
 
-				js_sys_path = Some(parse_ty_or_value(
-					&mut attr,
-					punct.span(),
-					"`js_sys = <path>`",
-				)?);
+				js_sys_path =
+					Some(parse_ty_or_value(&mut attr, punct.span(), "`js_sys = <path>`")?.1);
 			}
 			"namespace" => {
 				if namespace.is_some() {
@@ -453,11 +450,11 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 
 		let mut js_parms = String::new();
 
-		for Parameter { name, .. } in &parms {
+		for Parameter { name_string, .. } in &parms {
 			if js_parms.is_empty() {
-				js_parms = name.to_string();
+				js_parms.push_str(name_string);
 			} else {
-				js_parms.extend([", ", &name.to_string()]);
+				js_parms.extend([", ", name_string]);
 			}
 		}
 
@@ -494,12 +491,34 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 									]
 								}),
 						)
-						.chain(iter::once(
-							Literal::string(&format!(
-								"({js_parms}) => {js_function_name}({js_parms})"
-							))
-							.into(),
-						)),
+						.chain([
+							Literal::string(&format!("({js_parms}) => {{{{")).into(),
+							Punct::new(',', Spacing::Alone).into(),
+						])
+						.chain(parms.iter().flat_map(|Parameter { name_string, .. }| {
+							[
+								Literal::string(&format!("\t{name_string}{{}}")).into(),
+								Punct::new(',', Spacing::Alone).into(),
+							]
+						}))
+						.chain([
+							Literal::string(&format!("\treturn {js_function_name}({js_parms})"))
+								.into(),
+							Punct::new(',', Spacing::Alone).into(),
+							Literal::string("}}").into(),
+							Punct::new(',', Spacing::Alone).into(),
+						])
+						.chain(parms.iter().flat_map(|Parameter { ty_span, ty, .. }| {
+							iter::once(Ident::new("interpolate", ty_span.start).into())
+								.chain(js_sys_hazard(
+									ty,
+									&js_sys_path,
+									"Input",
+									"JS_CONV",
+									*ty_span,
+								))
+								.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
+						})),
 					),
 				)
 				.into(),
@@ -639,7 +658,9 @@ struct ExternFn {
 
 struct Parameter {
 	name: Ident,
+	name_string: String,
 	colon: Punct,
+	ty_span: SpanRange,
 	ty: Vec<TokenTree>,
 	comma: Option<Punct>,
 }
@@ -676,6 +697,7 @@ fn parse_extern_fn(
 
 	while parms_stream.peek().is_some() {
 		let name = parse_ident(&mut parms_stream, parms_group.span(), "parameter name")?;
+		let name_string = name.to_string();
 		let colon = expect_punct(
 			&mut parms_stream,
 			':',
@@ -683,7 +705,7 @@ fn parse_extern_fn(
 			"colon after parameter name",
 			false,
 		)?;
-		let ty = parse_ty_or_value(&mut parms_stream, colon.span(), "a type")?;
+		let (ty_span, ty) = parse_ty_or_value(&mut parms_stream, colon.span(), "a type")?;
 		let comma = if parms_stream.peek().is_some() {
 			Some(expect_punct(
 				&mut parms_stream,
@@ -698,7 +720,9 @@ fn parse_extern_fn(
 
 		parms.push(Parameter {
 			name,
+			name_string,
 			colon,
+			ty_span,
 			ty,
 			comma,
 		});
@@ -716,7 +740,7 @@ fn parse_extern_fn(
 				"`->` for the return type",
 				true,
 			)?;
-			let ret_ty = parse_ty_or_value(stream, closing.span(), "a type")?;
+			let ret_ty = parse_ty_or_value(stream, closing.span(), "a type")?.1;
 			expect_punct(
 				stream,
 				';',
@@ -744,11 +768,13 @@ fn js_sys_hazard<'a>(
 	js_sys: &'a [TokenTree],
 	r#trait: &'static str,
 	field: &'static str,
-	span: Span,
+	span: impl Into<SpanRange>,
 ) -> impl 'a + Iterator<Item = TokenTree> {
+	let span = span.into();
+
 	iter::once(Punct::new('<', Spacing::Alone).into())
 		.chain(ty.iter().cloned())
-		.chain(iter::once(Ident::new("as", span).into()))
+		.chain(iter::once(Ident::new("as", span.start).into()))
 		.chain(path_with_js_sys(js_sys, ["hazard", r#trait], span))
 		.chain(iter::once(Punct::new('>', Spacing::Alone).into()))
 		.chain(path(iter::once(field), span))
@@ -757,7 +783,7 @@ fn js_sys_hazard<'a>(
 fn path_with_js_sys<'js_sys>(
 	js_sys: &'js_sys [TokenTree],
 	parts: impl 'js_sys + IntoIterator<Item = &'static str>,
-	span: Span,
+	span: impl 'js_sys + Into<SpanRange>,
 ) -> impl 'js_sys + Iterator<Item = TokenTree> {
 	js_sys.iter().cloned().chain(path(parts, span))
 }
