@@ -458,6 +458,32 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			}
 		}
 
+		let parms_conv = parms
+			.iter()
+			.flat_map(|Parameter { name_string, .. }| {
+				[
+					Literal::string(&format!("\t{name_string}{{}}")).into(),
+					Punct::new(',', Spacing::Alone).into(),
+				]
+			})
+			.chain([
+				Literal::string(&format!("\treturn {js_function_name}({js_parms})")).into(),
+				Punct::new(',', Spacing::Alone).into(),
+				Literal::string("}}").into(),
+				Punct::new(',', Spacing::Alone).into(),
+			])
+			.chain(parms.iter().flat_map(|Parameter { ty_span, ty, .. }| {
+				iter::once(Ident::new("interpolate", ty_span.start).into())
+					.chain(js_sys_hazard(
+						ty,
+						&js_sys_path,
+						"Input",
+						"JS_CONV",
+						*ty_span,
+					))
+					.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
+			}));
+
 		let import_js = path_with_js_sys(&js_sys_path, ["js_bindgen", "import_js"], name.span())
 			.chain([
 				Punct::new('!', Spacing::Alone).into(),
@@ -492,33 +518,20 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 								}),
 						)
 						.chain([
-							Literal::string(&format!("({js_parms}) => {{{{")).into(),
+							if parms.is_empty() {
+								Literal::string(&js_function_name)
+							} else {
+								Literal::string(&format!("({js_parms}) => {{{{"))
+							}
+							.into(),
 							Punct::new(',', Spacing::Alone).into(),
 						])
-						.chain(parms.iter().flat_map(|Parameter { name_string, .. }| {
-							[
-								Literal::string(&format!("\t{name_string}{{}}")).into(),
-								Punct::new(',', Spacing::Alone).into(),
-							]
-						}))
-						.chain([
-							Literal::string(&format!("\treturn {js_function_name}({js_parms})"))
-								.into(),
-							Punct::new(',', Spacing::Alone).into(),
-							Literal::string("}}").into(),
-							Punct::new(',', Spacing::Alone).into(),
-						])
-						.chain(parms.iter().flat_map(|Parameter { ty_span, ty, .. }| {
-							iter::once(Ident::new("interpolate", ty_span.start).into())
-								.chain(js_sys_hazard(
-									ty,
-									&js_sys_path,
-									"Input",
-									"JS_CONV",
-									*ty_span,
-								))
-								.chain(iter::once(Punct::new(',', Spacing::Alone).into()))
-						})),
+						.chain(
+							(!parms.is_empty())
+								.then_some(parms_conv)
+								.into_iter()
+								.flatten(),
+						),
 					),
 				)
 				.into(),

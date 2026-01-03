@@ -260,9 +260,7 @@ fn empty() {
 
 				::js_sys::js_bindgen::import_js!(
 					name = "log",
-					"() => {{",
-					"\treturn globalThis.log()",
-					"}}",
+					"globalThis.log",
 				);
 
 				unsafe extern "C" {
@@ -413,9 +411,7 @@ fn r#return() {
 
 				::js_sys::js_bindgen::import_js!(
 					name = "is_nan",
-					"() => {{",
-					"\treturn globalThis.is_nan()",
-					"}}",
+					"globalThis.is_nan",
 				);
 
 				unsafe extern "C" {
@@ -518,9 +514,7 @@ fn cfg() {
 
 				::js_sys::js_bindgen::import_js!(
 					name = "log",
-					"() => {{",
-					"\treturn globalThis.log()",
-					"}}",
+					"globalThis.log",
 				);
 
 				unsafe extern "C" {
