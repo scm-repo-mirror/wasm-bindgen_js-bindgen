@@ -191,7 +191,7 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) {
 			Payload::ImportSection(i) => {
 				let mut import_section = ImportSection::new();
 
-				for i in i {
+				for i in i.into_imports() {
 					let mut import = i.expect("import should be parsable");
 
 					// This is `llvm-mc` workaround for 32-bit tables when compiling to Wasm64.
