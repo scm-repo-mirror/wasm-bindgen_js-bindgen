@@ -2,4 +2,3 @@
 /client/Cargo.lock
 /host/target
 /host/Cargo.lock
-/host/js-bindgen/target

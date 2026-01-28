@@ -86,6 +86,7 @@ This is a list of upstream issues that could make our lives significantly easier
   - [Chrome Bug](https://issues.chromium.org/issues/40102463)
   - [Firefox Bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1561594)
 - `wasm-encoder` `io::Write` support: [bytecodealliance/wasm-tools#778]
+- Improved test coverage data merging: [llvm/llvm-project#121194]
 
 [llvm/llvm-project#136594]: https://github.com/llvm/llvm-project/issues/136594
 [rust-lang/rust#136382]: https://github.com/rust-lang/rust/issues/136382
@@ -102,3 +103,4 @@ This is a list of upstream issues that could make our lives significantly easier
 [rust-lang/rust#136096]: https://github.com/rust-lang/rust/issues/136096
 [rust-lang/rust#133508]: https://github.com/rust-lang/rust/issues/133508
 [bytecodealliance/wasm-tools#778]: https://github.com/bytecodealliance/wasm-tools/issues/778
+[llvm/llvm-project#121194]: https://github.com/llvm/llvm-project/pull/121194

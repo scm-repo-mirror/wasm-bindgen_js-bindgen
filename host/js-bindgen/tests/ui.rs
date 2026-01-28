@@ -6,6 +6,13 @@ use ui_test::{CommandBuilder, Config};
 
 fn main() -> Result<()> {
 	let mut config = Config::rustc("tests/ui");
+	// `ui_test` is unable to pick up the workspace target folder:
+	// https://github.com/oli-obk/ui_test/issues/362
+	config.out_dir = env::current_dir()?
+		.parent()
+		.unwrap()
+		.join("target")
+		.join("ui");
 	config
 		.comment_defaults
 		.base()
