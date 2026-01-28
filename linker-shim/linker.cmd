@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env -S =2>NUL sh
+:; # A very quirky solution until we find a better one.
 
 :; # UNIX
 :; # Lines starting with `:;` are ignored on Windows but are executed on UNIX.
