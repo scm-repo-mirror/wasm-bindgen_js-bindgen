@@ -1,79 +1,82 @@
 export async function runTests({ wasmBytes, importObject, tests, filtered, emit }) {
-	const startTime = Date.now();
-	emit({ type: "run-start", total: tests.length, filtered });
+	const startTime = Date.now()
+	emit({ type: "run-start", total: tests.length, filtered })
 
-	const { instance } = await WebAssembly.instantiate(wasmBytes, importObject);
-	const panicPayload = instance.exports.last_panic_payload;
-	const panicMessage = instance.exports.last_panic_message;
-	const externrefTable = resolveExternrefTable(importObject);
-
-	let failed = 0;
-	let ignored = 0;
+	let failed = 0
+	let ignored = 0
 
 	for (const test of tests) {
+		const { instance } = await WebAssembly.instantiate(wasmBytes, importObject)
+
 		if (test.ignore) {
-			ignored += 1;
-			emit({ type: "test-ignored", name: test.name, reason: test.ignore_reason });
-			continue;
+			ignored += 1
+			emit({
+				type: "test-ignored",
+				name: test.name,
+				reason: typeof test.ignore == "string" ? test.ignore : undefined,
+			})
+			continue
 		}
 
-		const testFn = instance.exports[test.name];
+		const testFn = instance.exports[test.name]
 		if (typeof testFn !== "function") {
 			emit({
 				type: "test-failed",
 				name: test.name,
 				error: `missing export: ${test.name}`,
-			});
-			failed += 1;
-			continue;
+			})
+			failed += 1
+			continue
 		}
 
-		const result = test.run(testFn);
-		const shouldPanic = test.should_panic;
+		const result = test.run(testFn)
+		const shouldPanic = test.shouldPanic
 		if (shouldPanic) {
 			if (result.ok) {
 				emit({
 					type: "test-failed",
 					name: test.name,
 					error: "test did not panic as expected",
-					should_panic: true,
-				});
-				failed += 1;
-				continue;
+					shouldPanic: true,
+				})
+				failed += 1
+				continue
 			}
 
-			const expectedText = test.should_panic_reason;
-			const payload = coercePanicMessage(panicPayload(), externrefTable);
-			const message = coercePanicMessage(panicMessage(), externrefTable);
+			const expectedText = typeof test.shouldPanic == "string" ? test.shouldPanic : undefined
+			const payload = panicPayload()
+			const message = panicMessage()
 
 			if (expectedText && !payload.includes(expectedText)) {
-				const displayPayload = escapeForDisplay(payload);
-				const displayExpected = escapeForDisplay(expectedText);
+				const displayPayload = escapeForDisplay(payload)
+				const displayExpected = escapeForDisplay(expectedText)
 				emit({
 					type: "test-failed",
 					name: test.name,
 					error:
-						message + "\n" +
-						result.stack + "\n" +
+						message +
+						"\n" +
+						result.stack +
+						"\n" +
 						"note: panic did not contain expected string\n" +
 						`      panic message: "${displayPayload}"\n` +
 						` expected substring: "${displayExpected}"`,
-					should_panic: true,
-				});
-				failed += 1;
-				continue;
+					shouldPanic: true,
+				})
+				failed += 1
+				continue
 			}
 
-			emit({ type: "test-ok", name: test.name, should_panic: true });
-			continue;
+			emit({ type: "test-ok", name: test.name, shouldPanic: true })
+			continue
 		}
 
 		if (result.ok) {
-			emit({ type: "test-ok", name: test.name, should_panic: false });
+			emit({ type: "test-ok", name: test.name, shouldPanic: false })
 		} else {
-			const message = coercePanicMessage(panicMessage(), externrefTable);
-			emit({ type: "test-failed", name: test.name, error: message + "\n" + result.stack });
-			failed += 1;
+			const message = panicMessage()
+			emit({ type: "test-failed", name: test.name, error: message + "\n" + result.stack })
+			failed += 1
 		}
 	}
 
@@ -85,24 +88,24 @@ export async function runTests({ wasmBytes, importObject, tests, filtered, emit 
 		ignored,
 		filtered,
 		duration_ms: Date.now() - startTime,
-	});
+	})
 
-	return { failed };
+	return { failed }
 }
 
-function resolveExternrefTable(importObject) {
-	return importObject["js_sys"]["externref.table"];
+function panicMessage() {
+	const value = globalThis.PanicMessage
+	return value ? value : ""
 }
 
-function coercePanicMessage(value, externrefTable) {
-	const ref = externrefTable.get(value);
-	externrefTable.set(value, null);
-	return String(ref);
+function panicPayload() {
+	const value = globalThis.PanicPayload
+	return value ? value : ""
 }
 
 function escapeForDisplay(value) {
 	return String(value || "")
 		.replace(/\r/g, "\\r")
 		.replace(/\n/g, "\\n")
-		.replace(/\t/g, "\\t");
+		.replace(/\t/g, "\\t")
 }

@@ -33,23 +33,31 @@ Wasm tests: Node runner (default):
 cargo test --target wasm32-unknown-unknown
 ```
 
-Wasm tests: Browser runner (Playwright headless):
+Wasm tests: Browser runner (headless):
 
 ```sh
-JBG_TEST_DRIVER=chrome cargo test --target wasm32-unknown-unknown
+JBG_TEST_RUNNER=browser cargo test --target wasm32-unknown-unknown
 ```
 
 Wasm tests: Browser server mode (open URL in a browser):
 
 ```sh
-JBG_TEST_SERVER=1 cargo test --target wasm32-unknown-unknown
+JBG_TEST_RUNNER=server cargo test --target wasm32-unknown-unknown
 ```
 
 Runner options:
 
-- `JBG_TEST_DRIVER=chrome|gecko|webkit`
+- `JBG_TEST_RUNNER=node` (run in nodejs, set by default)
+- `JBG_TEST_RUNNER=deno` (run in deno)
+
+- `JBG_TEST_RUNNER=browser` (run in headless browser, auto detect driver)
+- `JBG_TEST_GECKODRIVER=<path>` (use firefix)
+- `JBG_TEST_CHROMEDRIVER=<path>` (use chrome)
+- `JBG_TEST_MSEDGEDRIVER=<path>` (use edge)
+- `JBG_TEST_WEBDRIVER_JSON` (set driver conf)
 - `JBG_TEST_WORKER=dedicated|shared|service`
-- `JBG_TEST_SERVER=1` (serve browser runner and print URL)
+
+- `JBG_TEST_RUNNER=server` (serve browser runner and print URL)
 - `JBG_TEST_SERVER_ADDRESS=127.0.0.1:8000` (defaults to 8000; falls back to a random port if busy)
 
 List and filter tests:
@@ -65,7 +73,7 @@ cargo test --target wasm32-unknown-unknown -- --ignored
 Other test flags:
 
 ```sh
-cargo test --target wasm32-unknown-unknown -- --nocapture
+cargo test --target wasm32-unknown-unknown -- --no-capture
 ```
 
 Wasm tooling checks:
@@ -96,5 +104,3 @@ cd client
 CARGO_TARGET_WASM64_UNKNOWN_UNKNOWN_RUSTFLAGS="-Ctarget-feature=+atomics -Clink-arg=--shared-memory -Clink-arg=--max-memory=17179869184" \
   cargo +nightly build --example basic --target wasm64-unknown-unknown -Zbuild-std=panic_abort,std --release --timings
 ```
-
-

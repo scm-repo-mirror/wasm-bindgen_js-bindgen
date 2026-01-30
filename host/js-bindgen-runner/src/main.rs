@@ -1,69 +1,128 @@
-use std::env;
-use std::fs;
-use std::io::{ErrorKind, Read, Write};
-use std::net::{TcpListener, TcpStream};
+mod driver;
+
+use std::env::VarError;
+use std::io::ErrorKind;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::{
-	Arc, Condvar, Mutex,
-	atomic::{AtomicBool, Ordering},
-};
-use std::thread;
+use std::process::{self, Command};
+use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
+use std::{env, fs, iter, str};
 
 use anyhow::{Context, Result, bail};
-use js_bindgen_ld_shared::ReadFile;
-use wasmparser::{Parser, Payload};
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::{HeaderValue, StatusCode, header};
+use axum::response::Response;
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use clap::{Parser, ValueEnum};
+use driver::Capabilities;
+use fantoccini::ClientBuilder;
+use js_bindgen_shared::ReadFile;
+use serde::{Serialize, Serializer};
+use tempfile::TempDir;
+use tokio::net::TcpListener;
+use tokio::runtime::Runtime;
+use tokio::sync::{Mutex, Notify};
+use tokio::time::interval;
+use wasmparser::{Parser as WasmParser, Payload};
 
-const NODE_RUNNER: &str = "js/node-runner.mjs";
-const PLAYWRIGHT_RUNNER: &str = "js/playwright-runner.mjs";
-const BROWSER_RUNNER_SOURCE: &str = include_str!("../js/browser-runner.mjs");
-const RUNNER_CORE_SOURCE: &str = include_str!("../js/runner-core.mjs");
-const SHARED_JS_SOURCE: &str = include_str!("../js/shared.mjs");
-const WORKER_RUNNER_SOURCE: &str = include_str!("../js/worker-runner.mjs");
-const SERVICE_WORKER_SOURCE: &str = include_str!("../js/service-worker.mjs");
-const CONSOLE_HOOK_SOURCE: &str = include_str!("../js/console-hook.mjs");
+use crate::driver::Driver;
 
-const GREEN: &str = "\u{001b}[32m";
-const RESET: &str = "\u{001b}[0m";
+const NODE_RUNNER: &str = include_str!("../js/node-runner.mjs");
+const BROWSER_RUNNER: &str = include_str!("../js/browser-runner.mjs");
+const RUNNER_CORE: &str = include_str!("../js/runner-core.mjs");
+const SHARED_JS: &str = include_str!("../js/shared.mjs");
+const WORKER_RUNNER: &str = include_str!("../js/worker-runner.mjs");
+const CONSOLE_HOOK: &str = include_str!("../js/console-hook.mjs");
 
-#[derive(Debug, serde::Serialize)]
+/// Possible values for the `--format` option.
+#[derive(Clone, Copy, ValueEnum)]
+enum FormatSetting {
+	/// Display one character per test
+	Terse,
+}
+
+#[derive(Parser)]
+#[command(name = "js-bindgen-runner", version, about, long_about = None)]
+struct Cli {
+	/// Run ignored and not ignored tests.
+	#[arg(long, conflicts_with = "ignored")]
+	include_ignored: bool,
+	/// Run only ignored tests.
+	#[arg(long, conflicts_with = "include_ignored")]
+	ignored: bool,
+	/// Exactly match filters rather than by substring.
+	#[arg(long)]
+	exact: bool,
+	/// List all tests and benchmarks.
+	#[arg(long)]
+	list: bool,
+	/// don't capture `console.*()` of each task, allow printing directly.
+	#[arg(long, alias = "nocapture")]
+	no_capture: bool,
+	/// Configure formatting of output.
+	#[arg(long, value_enum)]
+	format: Option<FormatSetting>,
+	/// The FILTER string is tested against the name of all tests, and only
+	/// those tests whose names contain the filter are run. Multiple filter
+	/// strings may be passed, which will run all tests matching any of the
+	/// filters.
+	filter: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct TestEntry {
 	name: String,
-	ignore: bool,
-	ignore_reason: Option<String>,
-	should_panic: bool,
-	should_panic_reason: Option<String>,
+	#[serde(serialize_with = "option_option_string")]
+	ignore: Option<Option<String>>,
+	#[serde(serialize_with = "option_option_string")]
+	should_panic: Option<Option<String>>,
 }
 
 fn main() -> Result<()> {
-	let mut args = env::args().skip(1);
-
-	let wasm_path = args
+	let mut args = env::args_os();
+	let binary = args
 		.next()
-		.map(PathBuf::from)
-		.context("expected a wasm file path")?;
+		.context("expected the first argument to be present")?;
+	// We parse the file argument ourselves to prevent it from being shown on the
+	// help page.
+	let file = args.next();
 
-	let args = TestArgs::new(args)?;
+	let cli = Cli::parse_from(iter::once(binary).chain(args));
+
+	// We delay actually parsing the file to support calling without a file, e.g.
+	// `--help`.
+	let file = file.context("expected a file to have been passed from `cargo run/test`")?;
+	let wasm_path = PathBuf::from(&file);
 	let wasm_bytes = ReadFile::new(&wasm_path)
-		.with_context(|| format!("failed to read wasm file: {}", wasm_path.display()))?;
+		.with_context(|| format!("failed to read Wasm file: {}", wasm_path.display()))?;
+	let args = TestArgs::new(cli)?;
 
 	let mut tests = read_tests(&wasm_bytes)?;
-	let filtered_count = apply_filters(&mut tests, &args.filters, args.ignored_only, args.exact);
+	let filtered_count = apply_filters(
+		&mut tests,
+		args.filter.as_ref(),
+		args.ignored_only,
+		args.exact,
+	);
 
 	if args.list_only {
 		match args.list_format {
-			ListFormat::Standard => {
+			Some(FormatSetting::Terse) => {
+				for test in &tests {
+					println!("{}: test", test.name);
+				}
+			}
+			None => {
 				for test in &tests {
 					println!("{}: test", test.name);
 				}
 				println!();
 				println!("{} tests, 0 benchmarks", tests.len());
-			}
-			ListFormat::Terse => {
-				for test in &tests {
-					println!("{}: test", test.name);
-				}
 			}
 		}
 		return Ok(());
@@ -73,358 +132,356 @@ fn main() -> Result<()> {
 		println!();
 		println!("running 0 tests");
 		println!();
+		const GREEN: &str = "\u{001b}[32m";
+		const RESET: &str = "\u{001b}[0m";
 		println!(
-			"test result: {GREEN}ok{RESET}. 0 passed; 0 failed; 0 ignored; 0 measured; {filtered_count} filtered out; finished in 0.00s"
+			"test result: {GREEN}ok{RESET}. 0 passed; 0 failed; 0 ignored; 0 measured; \
+			 {filtered_count} filtered out; finished in 0.00s"
 		);
 		println!();
 		return Ok(());
 	}
 
-	// `web_sys-4e01138c76cd2a1a.wasm` to `web_sys-4e01138c76cd2a1a.js`
-	let imports_path = wasm_path.with_extension("js");
-	let tests_json = serde_json::to_string(&tests).expect("checked");
+	// The JS file has the same name, just a different file extension.
+	let imports_path = wasm_path.with_extension("mjs");
+	let tests_json = serde_json::to_string(&tests).unwrap();
 
-	match args.runner {
-		RunnerConfig::Nodejs => run_node(
-			&wasm_path,
-			&imports_path,
-			tests_json,
-			filtered_count,
-			args.nocapture,
-		)?,
-		RunnerConfig::Browser { kind, worker } => run_playwright(
-			wasm_bytes.to_vec(),
-			&imports_path,
-			tests_json,
-			filtered_count,
-			args.nocapture,
-			&kind,
-			worker.as_ref(),
-		)?,
-		RunnerConfig::Server { worker } => run_browser_server(
-			wasm_bytes.to_vec(),
-			&imports_path,
-			tests_json,
-			filtered_count,
-			args.nocapture,
-			worker.as_ref(),
-		)?,
+	let runner = Runner {
+		wasm_path,
+		imports_path,
+		wasm_bytes,
+		tests_json,
+		filtered_count,
+		no_capture: args.no_capture,
+	};
+
+	match RunnerConfig::from_env()? {
+		RunnerConfig::Node => runner.run_node()?,
+		RunnerConfig::Deno => runner.run_deno()?,
+		RunnerConfig::Browser { worker } => Runtime::new()?.block_on(runner.run_browser(worker))?,
+		RunnerConfig::Server { worker } => Runtime::new()?.block_on(runner.run_server(worker))?,
 	}
 
 	Ok(())
 }
 
-enum ListFormat {
-	Standard,
-	Terse,
-}
-
 struct TestArgs {
 	list_only: bool,
-	nocapture: bool,
-	filters: Vec<String>,
-	list_format: ListFormat,
+	no_capture: bool,
+	filter: Vec<String>,
+	list_format: Option<FormatSetting>,
 	ignored_only: bool,
 	exact: bool,
-	runner: RunnerConfig,
 }
 
 impl TestArgs {
-	pub fn new(mut iter: impl Iterator<Item = String>) -> Result<TestArgs> {
-		let mut output = TestArgs {
-			list_only: false,
-			nocapture: false,
-			filters: Vec::new(),
-			list_format: ListFormat::Standard,
-			ignored_only: false,
-			exact: false,
-			runner: RunnerConfig::from_env()?,
+	fn new(cli: Cli) -> Result<Self> {
+		let output = Self {
+			list_only: cli.list,
+			no_capture: cli.no_capture,
+			filter: cli.filter,
+			list_format: cli.format,
+			ignored_only: cli.ignored,
+			exact: cli.exact,
 		};
-
-		while let Some(arg) = iter.next() {
-			if arg == "--list" {
-				output.list_only = true;
-			} else if arg == "--nocapture" {
-				output.nocapture = true;
-			} else if arg == "--ignored" {
-				output.ignored_only = true;
-			} else if arg == "--exact" {
-				output.exact = true;
-			} else if let Some(value) = arg.strip_prefix("--format=") {
-				if value == "terse" {
-					output.list_format = ListFormat::Terse;
-				}
-			} else if arg == "--format" {
-				if let Some(value) = iter.next() {
-					if value == "terse" {
-						output.list_format = ListFormat::Terse;
-					}
-				}
-			} else if arg.starts_with('-') {
-				continue;
-			} else {
-				output.filters.push(arg);
-			}
-		}
 
 		Ok(output)
 	}
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 enum RunnerConfig {
-	Nodejs,
-	Browser {
-		kind: DriverKind,
-		worker: Option<WorkerKind>,
-	},
-	Server {
-		worker: Option<WorkerKind>,
-	},
+	Node,
+	Deno,
+	Browser { worker: Option<WorkerKind> },
+	Server { worker: Option<WorkerKind> },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 enum WorkerKind {
-	// https://developer.mozilla.org/en-US/docs/Web/API/Worker
+	/// https://developer.mozilla.org/en-US/docs/Web/API/Worker
 	Dedicated,
-	// https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker
+	/// https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker
 	Shared,
-	// https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorker
+	/// https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorker
 	Service,
 }
 
 impl WorkerKind {
 	fn from_str(worker: &str) -> Result<Self> {
 		Ok(match worker {
-			"dedicated" => WorkerKind::Dedicated,
-			"shared" => WorkerKind::Shared,
-			"service" => WorkerKind::Service,
-			worker => bail!("unsupported worker: {worker}"),
+			"dedicated" => Self::Dedicated,
+			"shared" => Self::Shared,
+			"service" => Self::Service,
+			worker => bail!("unrecognized worker: {worker}"),
 		})
 	}
 
-	fn as_str(&self) -> &str {
+	fn as_str(self) -> &'static str {
 		match self {
-			WorkerKind::Dedicated => "dedicated",
-			WorkerKind::Shared => "shared",
-			WorkerKind::Service => "service",
-		}
-	}
-}
-
-#[derive(Debug)]
-enum DriverKind {
-	// https://developer.chrome.com/docs/chromedriver
-	Chrome,
-	// https://github.com/mozilla/geckodriver
-	Gecko,
-	// https://github.com/WebKit/WebKit
-	WebKit,
-}
-
-impl DriverKind {
-	fn from_str(driver: &str) -> Result<Self> {
-		Ok(match driver {
-			"chrome" => DriverKind::Chrome,
-			"gecko" => DriverKind::Gecko,
-			"webkit" => DriverKind::WebKit,
-			driver => bail!("unsupported driver: {driver}"),
-		})
-	}
-
-	fn as_str(&self) -> &str {
-		match self {
-			DriverKind::Chrome => "chrome",
-			DriverKind::Gecko => "gecko",
-			DriverKind::WebKit => "webkit",
+			Self::Dedicated => "dedicated",
+			Self::Shared => "shared",
+			Self::Service => "service",
 		}
 	}
 }
 
 impl RunnerConfig {
 	fn from_env() -> Result<Self> {
-		let driver = match env::var("JBG_TEST_DRIVER") {
-			Ok(driver) => Some(DriverKind::from_str(&driver)?),
-			Err(_) => None,
-		};
-
 		let worker = match env::var("JBG_TEST_WORKER") {
 			Ok(worker) => Some(WorkerKind::from_str(&worker)?),
-			Err(_) => None,
+			Err(VarError::NotPresent) => None,
+			Err(VarError::NotUnicode(_)) => bail!("unable to parse `JBG_TEST_WORKER`"),
 		};
 
-		let server = env::var("JBG_TEST_SERVER").is_ok();
-
-		let config = match (server, driver) {
-			(true, None) => RunnerConfig::Server { worker },
-			(true, Some(d)) => {
-				eprintln!("Because a server has been configured, the {d:?} option is not work.");
-				RunnerConfig::Server { worker }
-			}
-			(false, None) => {
-				if let Some(worker) = worker {
-					eprintln!("The {worker:?} option does not work in Node.js.");
+		let config = match env::var("JBG_TEST_RUNNER") {
+			Ok(s) => match s.as_str() {
+				"browser" => Self::Browser { worker },
+				"server" => Self::Server { worker },
+				"deno" => Self::Deno,
+				"node" => Self::Node,
+				runner => bail!("unrecognized runner: {runner}"),
+			},
+			Err(VarError::NotPresent) => {
+				match env::var_os("PATH").and_then(|value| {
+					env::split_paths(&value).find_map(|path| {
+						["deno", "node"].into_iter().find(|name| {
+							path.join(name)
+								.with_extension(env::consts::EXE_EXTENSION)
+								.exists()
+						})
+					})
+				}) {
+					Some(name) => match name {
+						"deno" => Self::Deno,
+						"node" => Self::Node,
+						_ => unreachable!(),
+					},
+					None => bail!("unable to find a supported JS engine"),
 				}
-				RunnerConfig::Nodejs
 			}
-			(false, Some(kind)) => RunnerConfig::Browser { kind, worker },
+			Err(VarError::NotUnicode(_)) => bail!("unable to parse `JBG_TEST_RUNNER`"),
 		};
+
+		if worker.is_some()
+			&& let Self::Node { .. } | Self::Deno { .. } = config
+		{
+			eprintln!(
+				"Only browser and server runners support worker types; `JBG_TEST_WORKER` is \
+				 ignored",
+			)
+		}
 
 		Ok(config)
 	}
 }
 
-fn run_node(
-	wasm_path: &Path,
-	imports_path: &Path,
+struct Runner {
+	wasm_path: PathBuf,
+	imports_path: PathBuf,
+	wasm_bytes: ReadFile,
 	tests_json: String,
 	filtered_count: usize,
-	nocapture: bool,
-) -> Result<()> {
-	ensure_module_package(imports_path);
-	let runner_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(NODE_RUNNER);
-	let mut tests_file = tempfile::NamedTempFile::new()?;
-	tests_file.write_all(tests_json.as_bytes())?;
-	let tests_path = tests_file.path().to_path_buf();
-
-	let status = Command::new("node")
-		.arg(runner_path)
-		.env("JS_BINDGEN_WASM", wasm_path)
-		.env("JS_BINDGEN_IMPORTS", imports_path)
-		.env("JS_BINDGEN_TESTS_PATH", &tests_path)
-		.env("JS_BINDGEN_FILTERED", filtered_count.to_string())
-		.env("JS_BINDGEN_NOCAPTURE", if nocapture { "1" } else { "0" })
-		.status()
-		.context("failed to run node")?;
-
-	if !status.success() {
-		std::process::exit(status.code().unwrap_or(1));
-	}
-
-	Ok(())
+	no_capture: bool,
 }
 
-fn ensure_module_package(imports_path: &Path) {
-	let Some(parent) = imports_path.parent() else {
-		return;
-	};
-	let package_json = parent.join("package.json");
-	if let Err(err) = fs::write(&package_json, r#"{"type": "module"}"#) {
-		eprintln!("failed to write package.json: {err}");
+impl Runner {
+	fn run_node(self) -> Result<()> {
+		let node_dir = NodeDir::new(&self.tests_json)?;
+
+		let status = Command::new("node")
+			.arg(node_dir.runner)
+			.arg(self.wasm_path)
+			.arg(self.imports_path)
+			.arg(node_dir.tests)
+			.arg(self.filtered_count.to_string())
+			.arg(if self.no_capture { "1" } else { "0" })
+			.status()?;
+
+		if !status.success() {
+			process::exit(status.code().unwrap_or(1));
+		}
+
+		Ok(())
+	}
+
+	fn run_deno(self) -> Result<()> {
+		let node_dir = NodeDir::new(&self.tests_json)?;
+
+		let status = Command::new("deno")
+			.arg("run")
+			.arg("--allow-read")
+			.arg(node_dir.runner)
+			.arg(self.wasm_path)
+			.arg(self.imports_path)
+			.arg(node_dir.tests)
+			.arg(self.filtered_count.to_string())
+			.arg(if self.no_capture { "1" } else { "0" })
+			.status()?;
+
+		if !status.success() {
+			process::exit(status.code().unwrap_or(1));
+		}
+
+		Ok(())
+	}
+
+	async fn run_browser(self, worker: Option<WorkerKind>) -> Result<()> {
+		let server = self.http_server(worker).await?;
+
+		let driver = Driver::find()?;
+		let guard = driver::launch_driver(&driver).await?;
+
+		let webdriver_json_path = env::var_os("JBG_TEST_WEBDRIVER_JSON").map(PathBuf::from);
+		let webdriver_json_path = webdriver_json_path
+			.as_deref()
+			.unwrap_or(Path::new("webdriver.json"));
+		let capabilities = match ReadFile::new(webdriver_json_path) {
+			Ok(file) => serde_json::from_slice(&file)?,
+			Err(error) if matches!(error.kind(), ErrorKind::NotFound) => Capabilities::new(),
+			Err(error) => return Err(error.into()),
+		};
+
+		let client = ClientBuilder::rustls()?
+			.capabilities(driver::capabilities(&driver, capabilities)?)
+			.connect(guard.url.as_str())
+			.await
+			.context("failed to connect to WebDriver")?;
+
+		client.goto(&server.url).await?;
+
+		let print_output = || async {
+			let Ok(output) = client
+				.execute("return window.takeReportLines()", vec![])
+				.await
+			else {
+				// The function is waiting to be defined.
+				return Ok(());
+			};
+			let lines: Vec<String> =
+				serde_json::from_value(output).context("failed to parse lines")?;
+			for line in lines {
+				println!("{line}");
+			}
+			anyhow::Ok(())
+		};
+
+		let mut ticker = interval(Duration::from_millis(100));
+
+		let report = loop {
+			tokio::select! {
+				_ = ticker.tick() => print_output().await?,
+				report = server.wait_for_report() => {
+					break report;
+				}
+			}
+		};
+
+		// the remaining lines
+		print_output().await?;
+
+		client.close().await?;
+
+		if report.failed > 0 {
+			process::exit(1);
+		}
+
+		Ok(())
+	}
+
+	async fn run_server(self, worker: Option<WorkerKind>) -> Result<()> {
+		let server = self.http_server(worker).await?;
+
+		println!("open this URL in your browser to run tests:");
+		println!("{}", server.url);
+
+		loop {
+			server.wait_for_report().await;
+		}
+	}
+
+	async fn http_server(self, worker: Option<WorkerKind>) -> Result<HttpServer> {
+		let assets = BrowserAssets::new(
+			self.wasm_bytes,
+			&self.imports_path,
+			self.tests_json,
+			self.filtered_count,
+			self.no_capture,
+			worker.map(WorkerKind::as_str),
+		)?;
+
+		let address = env::var_os("JBG_TEST_SERVER_ADDRESS")
+			.map(|var| {
+				var.into_string()
+					.ok()
+					.and_then(|string| SocketAddr::from_str(&string).ok())
+					.context("unable to parse `JBG_TEST_SERVER_ADDRESS`")
+			})
+			.transpose()?;
+		HttpServer::start(assets, address).await
 	}
 }
 
-fn run_playwright(
-	wasm_bytes: Vec<u8>,
-	imports_path: &Path,
-	tests_json: String,
-	filtered_count: usize,
-	nocapture: bool,
-	driver: &DriverKind,
-	worker: Option<&WorkerKind>,
-) -> Result<()> {
-	let assets = BrowserAssets::new(
-		wasm_bytes,
-		imports_path,
-		&tests_json,
-		filtered_count,
-		nocapture,
-		worker.map(|s| s.as_str()),
-	)?;
-	let server = HttpServer::start(assets, env::var("JBG_TEST_SERVER_ADDRESS").ok().as_deref())?;
-	let url = build_browser_url(server.base_url.as_str());
-
-	let runner_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(PLAYWRIGHT_RUNNER);
-	let mut child = Command::new("node")
-		.arg(runner_path)
-		.env("JBG_TEST_URL", url)
-		.env("JBG_TEST_DRIVER", driver.as_str())
-		.spawn()
-		.context("failed to run node")?;
-
-	let report = server.wait_for_report();
-	server.shutdown.store(true, Ordering::Relaxed);
-
-	for line in report.lines {
-		println!("{line}");
-	}
-
-	let _ = child.kill();
-	let _ = child.wait();
-
-	if report.failed > 0 {
-		std::process::exit(1);
-	}
-
-	Ok(())
+struct NodeDir {
+	_guard: TempDir,
+	runner: PathBuf,
+	tests: PathBuf,
 }
 
-fn run_browser_server(
-	wasm_bytes: Vec<u8>,
-	imports_path: &Path,
-	tests_json: String,
-	filtered_count: usize,
-	nocapture: bool,
-	worker: Option<&WorkerKind>,
-) -> Result<()> {
-	let assets = BrowserAssets::new(
-		wasm_bytes,
-		imports_path,
-		&tests_json,
-		filtered_count,
-		nocapture,
-		worker.map(|s| s.as_str()),
-	)?;
-	let server = HttpServer::start(assets, env::var("JBG_TEST_SERVER_ADDRESS").ok().as_deref())?;
-	let url = build_browser_url(server.base_url.as_str());
+impl NodeDir {
+	fn new(tests_json: &str) -> Result<Self> {
+		let dir = tempfile::tempdir()?;
+		let runner_path = dir.path().join("runner.mjs");
+		fs::write(&runner_path, NODE_RUNNER)?;
+		let tests_path = dir.path().join("tests.json");
+		fs::write(&tests_path, tests_json)?;
 
-	println!("open this URL in your browser to run tests:");
-	println!("{url}");
+		fs::write(dir.path().join("shared.mjs"), SHARED_JS)?;
+		fs::write(dir.path().join("runner-core.mjs"), RUNNER_CORE)?;
+		fs::write(dir.path().join("console-hook.mjs"), CONSOLE_HOOK)?;
 
-	loop {
-		let _ = server.wait_for_report();
+		Ok(Self {
+			_guard: dir,
+			runner: runner_path,
+			tests: tests_path,
+		})
 	}
-}
-
-fn build_browser_url(base_url: &str) -> String {
-	format!("{base_url}/index.html")
 }
 
 #[derive(Debug, serde::Deserialize)]
 struct Report {
-	lines: Vec<String>,
 	failed: u64,
 }
 
 struct ReportState {
 	result: Mutex<Option<Report>>,
-	signal: Condvar,
+	signal: tokio::sync::Notify,
 }
 
 struct BrowserAssets {
-	wasm_bytes: Vec<u8>,
-	import_js: String,
+	wasm_bytes: ReadFile,
+	import_js: ReadFile,
 	tests_json: String,
 	index_html: String,
 }
 
 impl BrowserAssets {
 	fn new(
-		wasm_bytes: Vec<u8>,
+		wasm_bytes: ReadFile,
 		imports_path: &Path,
-		tests_json: &str,
+		tests_json: String,
 		filtered_count: usize,
-		nocapture: bool,
+		no_capture: bool,
 		worker: Option<&str>,
 	) -> Result<Self> {
-		let import_js = fs::read_to_string(imports_path)?;
+		let import_js = ReadFile::new(imports_path)?;
 
 		let index_html = format!(
 			include_str!("../js/index.html"),
 			filtered_count = filtered_count,
-			nocapture_flag = if nocapture { "true" } else { "false" },
+			no_capture_flag = if no_capture { "true" } else { "false" },
 			worker = if let Some(worker) = worker {
-				format!("{worker:?}")
+				format!("\"{worker}\"")
 			} else {
 				"null".to_owned()
 			},
@@ -433,284 +490,275 @@ impl BrowserAssets {
 		Ok(Self {
 			wasm_bytes,
 			import_js,
-			tests_json: tests_json.to_string(),
+			tests_json,
 			index_html,
 		})
 	}
 }
 
 struct HttpServer {
-	base_url: String,
-	shutdown: Arc<AtomicBool>,
+	url: String,
+	report_state: Arc<ReportState>,
+}
+
+#[derive(Clone)]
+struct AppState {
+	assets: Arc<BrowserAssets>,
 	report_state: Arc<ReportState>,
 }
 
 impl HttpServer {
-	fn start(assets: BrowserAssets, address: Option<&str>) -> Result<Self> {
-		let listener = bind_default_port(address).context("failed to bind server")?;
+	async fn start(assets: BrowserAssets, address: Option<SocketAddr>) -> Result<Self> {
+		let listener = bind_address(address)
+			.await
+			.context("failed to bind server")?;
 		let local_addr = listener.local_addr()?;
-		let base_url = format!("http://{}:{}", local_addr.ip(), local_addr.port());
-		let shutdown = Arc::new(AtomicBool::new(false));
-		let shutdown_flag = Arc::clone(&shutdown);
+		let url = format!(
+			"http://{}:{}/index.html",
+			local_addr.ip(),
+			local_addr.port()
+		);
+
 		let assets = Arc::new(assets);
 		let report_state = Arc::new(ReportState {
 			result: Mutex::new(None),
-			signal: Condvar::new(),
+			signal: Notify::new(),
 		});
-		let report_state_thread = Arc::clone(&report_state);
+		let state = AppState {
+			assets,
+			report_state: Arc::clone(&report_state),
+		};
+		let app = build_router(state);
+		let serve = axum::serve(listener, app);
 
-		listener
-			.set_nonblocking(true)
-			.context("failed to set nonblocking")?;
-
-		thread::spawn(move || {
-			while !shutdown_flag.load(Ordering::Relaxed) {
-				match listener.accept() {
-					Ok((stream, _)) => {
-						let assets = Arc::clone(&assets);
-						let report_state = Arc::clone(&report_state_thread);
-						let _ = handle_connection(stream, assets, report_state);
-					}
-					Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-						thread::sleep(Duration::from_millis(5));
-					}
-					Err(_) => break,
-				}
+		tokio::spawn(async move {
+			if let Err(e) = serve.await {
+				panic!("failed to run server: {e:?}");
 			}
 		});
 
-		Ok(Self {
-			base_url,
-			shutdown,
-			report_state,
-		})
+		Ok(Self { url, report_state })
 	}
 
-	fn wait_for_report(&self) -> Report {
-		let mut guard = self.report_state.result.lock().unwrap();
+	async fn wait_for_report(&self) -> Report {
 		loop {
-			if let Some(report) = guard.take() {
+			self.report_state.signal.notified().await;
+			if let Some(report) = self.report_state.result.lock().await.take() {
 				return report;
 			}
-			guard = self.report_state.signal.wait(guard).unwrap();
 		}
 	}
 }
 
-fn bind_default_port(address: Option<&str>) -> Result<TcpListener> {
-	let default_addr = address.unwrap_or("127.0.0.1:8000");
-	match TcpListener::bind(default_addr) {
+fn build_router(state: AppState) -> Router {
+	Router::new()
+		.route("/", get(index_handler))
+		.route("/index.html", get(index_handler))
+		.route("/browser-runner.mjs", get(browser_runner_handler))
+		.route("/runner-core.mjs", get(runner_core_handler))
+		.route("/shared.mjs", get(shared_handler))
+		.route("/worker-runner.mjs", get(worker_runner_handler))
+		.route("/console-hook.mjs", get(console_hook_handler))
+		.route("/import.mjs", get(import_handler))
+		.route("/tests.json", get(tests_handler))
+		.route("/wasm", get(wasm_handler))
+		.route("/report", post(report_handler))
+		.with_state(state)
+}
+
+async fn bind_address(address: Option<SocketAddr>) -> Result<TcpListener> {
+	let default_addr = address.unwrap_or_else(|| SocketAddr::from_str("127.0.0.1:8000").unwrap());
+	match TcpListener::bind(default_addr).await {
 		Ok(listener) => Ok(listener),
 		Err(err) if err.kind() == ErrorKind::AddrInUse => {
 			let fallback_addr = address
-				.and_then(|addr| addr.split_once(':'))
-				.map(|(ip, _)| format!("{ip}:0"))
+				.map(|addr| format!("{}:0", addr.ip()))
 				.unwrap_or_else(|| "127.0.0.1:0".to_string());
-			TcpListener::bind(&fallback_addr).context("failed to bind fallback port")
+			TcpListener::bind(&fallback_addr)
+				.await
+				.context("failed to bind fallback port")
 		}
 		Err(err) => Err(err).context("failed to bind default port"),
 	}
 }
 
-fn handle_connection(
-	mut stream: TcpStream,
-	assets: Arc<BrowserAssets>,
-	report_state: Arc<ReportState>,
-) -> Result<()> {
-	let mut buffer = [0u8; 4096];
-	let mut request = Vec::new();
-	let mut header_end = 0;
-
-	loop {
-		let size = stream.read(&mut buffer)?;
-		if size == 0 {
-			break;
-		}
-		let len = request.len();
-		request.extend_from_slice(&buffer[..size]);
-
-		if let Some(pos) = request[len.saturating_sub(3)..]
-			.windows(4)
-			.position(|window| window == b"\r\n\r\n")
-		{
-			header_end = pos;
-			break;
-		}
-	}
-
-	if header_end == 0 {
-		return Ok(());
-	}
-
-	let (header_bytes, body) = request.split_at(header_end + 4);
-	let request_text = String::from_utf8_lossy(header_bytes);
-	let mut lines = request_text.lines();
-	let Some(request_line) = lines.next() else {
-		return Ok(());
-	};
-
-	// GET /index.html HTTP/1.1
-	let mut parts = request_line.split_whitespace();
-	let method = parts.next().unwrap_or_default();
-	let path = parts.next().unwrap_or("/");
-
-	let mut content_length = 0usize;
-	for line in lines {
-		if let Some(value) = line.strip_prefix("Content-Length:") {
-			content_length = value.trim().parse().unwrap_or(0);
-		}
-	}
-
-	if method == "POST" && path.starts_with("/report") {
-		let mut body_vec = body.to_vec();
-		while body_vec.len() < content_length {
-			let size = stream.read(&mut buffer)?;
-			if size == 0 {
-				break;
-			}
-			body_vec.extend_from_slice(&buffer[..size]);
-		}
-
-		let report = serde_json::from_slice(&body_vec)?;
-		*report_state.result.lock().unwrap() = Some(report);
-		report_state.signal.notify_all();
-
-		write_response(&mut stream, 200, "text/plain", b"OK")?;
-		return Ok(());
-	}
-
-	if method == "OPTIONS" {
-		write_response(&mut stream, 204, "text/plain", b"")?;
-		return Ok(());
-	}
-
-	if method != "GET" {
-		write_response(&mut stream, 405, "text/plain", b"Method Not Allowed")?;
-		return Ok(());
-	}
-
-	let (body, content_type, status) = match path {
-		"/" | "/index.html" => (assets.index_html.as_bytes(), "text/html", 200),
-		"/browser-runner.mjs" => (
-			BROWSER_RUNNER_SOURCE.as_bytes(),
-			"application/javascript",
-			200,
-		),
-		"/runner-core.mjs" => (RUNNER_CORE_SOURCE.as_bytes(), "application/javascript", 200),
-		"/shared.mjs" => (SHARED_JS_SOURCE.as_bytes(), "application/javascript", 200),
-		"/worker-runner.mjs" => (
-			WORKER_RUNNER_SOURCE.as_bytes(),
-			"application/javascript",
-			200,
-		),
-		"/service-worker.mjs" => (
-			SERVICE_WORKER_SOURCE.as_bytes(),
-			"application/javascript",
-			200,
-		),
-		"/console-hook.mjs" => (
-			CONSOLE_HOOK_SOURCE.as_bytes(),
-			"application/javascript",
-			200,
-		),
-		"/import.js" => (assets.import_js.as_bytes(), "application/javascript", 200),
-		"/tests.json" => (assets.tests_json.as_bytes(), "application/json", 200),
-		"/wasm" => (assets.wasm_bytes.as_slice(), "application/wasm", 200),
-		_ => (b"Not Found".as_slice(), "text/plain", 404),
-	};
-
-	write_response(&mut stream, status, content_type, body)?;
-	Ok(())
+async fn index_handler(State(state): State<AppState>) -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"text/html",
+		state.assets.index_html.as_bytes(),
+	)
 }
 
-fn write_response(
-	stream: &mut TcpStream,
-	status: u16,
-	content_type: &str,
-	body: &[u8],
-) -> Result<()> {
-	let status_text = match status {
-		200 => "OK",
-		204 => "No Content",
-		404 => "Not Found",
-		405 => "Method Not Allowed",
-		_ => "OK",
-	};
-	write!(
-		stream,
-		"HTTP/1.1 {status} {status_text}\r\nContent-Length: {}\r\nContent-Type: {content_type}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nCross-Origin-Opener-Policy: same-origin\r\nCross-Origin-Embedder-Policy: require-corp\r\n\r\n",
-		body.len()
-	)?;
-	stream.write_all(body)?;
-	Ok(())
+async fn browser_runner_handler() -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/javascript",
+		BROWSER_RUNNER.as_bytes(),
+	)
+}
+
+async fn runner_core_handler() -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/javascript",
+		RUNNER_CORE.as_bytes(),
+	)
+}
+
+async fn shared_handler() -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/javascript",
+		SHARED_JS.as_bytes(),
+	)
+}
+
+async fn worker_runner_handler() -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/javascript",
+		WORKER_RUNNER.as_bytes(),
+	)
+}
+
+async fn console_hook_handler() -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/javascript",
+		CONSOLE_HOOK.as_bytes(),
+	)
+}
+
+async fn import_handler(State(state): State<AppState>) -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/javascript",
+		&state.assets.import_js,
+	)
+}
+
+async fn tests_handler(State(state): State<AppState>) -> Response {
+	bytes_response(
+		StatusCode::OK,
+		"application/json",
+		state.assets.tests_json.as_bytes(),
+	)
+}
+
+async fn wasm_handler(State(state): State<AppState>) -> Response {
+	bytes_response(StatusCode::OK, "application/wasm", &state.assets.wasm_bytes)
+}
+
+async fn report_handler(State(state): State<AppState>, Json(report): Json<Report>) -> Response {
+	*state.report_state.result.lock().await = Some(report);
+	state.report_state.signal.notify_one();
+	bytes_response(StatusCode::OK, "text/plain", "OK".as_bytes())
+}
+
+fn bytes_response(status: StatusCode, content_type: &'static str, body: &[u8]) -> Response {
+	let mut response = Response::new(Body::from(body.to_vec()));
+	*response.status_mut() = status;
+	response
+		.headers_mut()
+		.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+	with_headers(response)
+}
+
+fn with_headers(mut response: Response) -> Response {
+	let headers = response.headers_mut();
+	headers.insert("Access-Control-Allow-Origin", HeaderValue::from_static("*"));
+	headers.insert(
+		"Access-Control-Allow-Methods",
+		HeaderValue::from_static("GET, POST, OPTIONS"),
+	);
+	headers.insert(
+		"Access-Control-Allow-Headers",
+		HeaderValue::from_static("Content-Type"),
+	);
+	headers.insert(
+		"Cross-Origin-Opener-Policy",
+		HeaderValue::from_static("same-origin"),
+	);
+	headers.insert(
+		"Cross-Origin-Embedder-Policy",
+		HeaderValue::from_static("require-corp"),
+	);
+	response
+}
+
+fn option_option_string<S>(value: &Option<Option<String>>, serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	match value {
+		None => serializer.serialize_unit(),
+		Some(None) => serializer.serialize_bool(true),
+		Some(Some(reason)) => serializer.serialize_str(reason),
+	}
 }
 
 fn read_tests(wasm_bytes: &[u8]) -> Result<Vec<TestEntry>> {
-	/// None: `[0]`
-	///
-	/// Some(None): `[1]`
-	///
-	/// Some(Some(s)): `[2][len(s)][len]`
-	fn option_option_string(
-		data: &[u8],
-		mut offset: usize,
-	) -> Result<(Option<Option<String>>, usize)> {
-		offset += 1;
-		let value = match data[offset - 1] {
+	/// - None: `[0]`
+	/// - Some(None): `[1]`
+	/// - Some(Some(s)): `[2][len(s)][s]`
+	fn option_option_string(data: &mut &[u8]) -> Result<Option<Option<String>>> {
+		let value = match data
+			.split_off_first()
+			.context("invalid test flag encoding")?
+		{
 			0 => None,
 			1 => Some(None),
 			2 => {
 				let len = u32::from_le_bytes(
-					data[offset..offset + 4]
-						.try_into()
-						.expect("slice length checked"),
+					data.split_off(..4)
+						.context("invalid test flag length encoding")?
+						.try_into()?,
 				) as usize;
-				offset += 4;
-				let s = std::str::from_utf8(&data[offset..offset + len])
-					.context("payload is not utf-8")?
-					.to_string();
-				offset += len;
+				let s = str::from_utf8(
+					data.split_off(..len)
+						.context("invalid test flag reason encoding")?,
+				)?
+				.to_string();
 				Some(Some(s))
 			}
 			_ => bail!("mismatch flag value"),
 		};
-		Ok((value, offset))
+		Ok(value)
 	}
 
 	let mut tests = Vec::new();
 
-	for payload in Parser::new(0).parse_all(wasm_bytes) {
-		if let Payload::CustomSection(section) = payload.context("failed to parse wasm")?
+	for payload in WasmParser::new(0).parse_all(wasm_bytes) {
+		if let Payload::CustomSection(section) = payload?
 			&& section.name() == "js_bindgen.test"
 		{
-			let mut offset = 0;
-			let data = section.data();
+			let mut data = section.data();
 
-			while offset < data.len() {
+			while !data.is_empty() {
 				let len = u32::from_le_bytes(
-					data[offset..offset + 4]
-						.try_into()
-						.expect("slice length checked"),
+					data.split_off(..4)
+						.context("invalid test name length encoding")?
+						.try_into()?,
 				) as usize;
-				offset += 4;
-				let end = offset + len;
 
-				let (ignore, offset1) = option_option_string(data, offset)?;
-				let (should_panic, offset2) = option_option_string(data, offset1)?;
+				let ignore = option_option_string(&mut data)?;
+				let should_panic = option_option_string(&mut data)?;
 
-				let name =
-					std::str::from_utf8(&data[offset2..end]).context("test name is not utf-8")?;
+				let name = str::from_utf8(
+					data.split_off(..len)
+						.context("invalid test name encoding")?,
+				)?;
 
 				tests.push(TestEntry {
 					name: name.to_string(),
-					ignore: ignore.is_some(),
-					ignore_reason: ignore.and_then(|s| s),
-					should_panic: should_panic.is_some(),
-					should_panic_reason: should_panic.and_then(|s| s),
+					ignore,
+					should_panic,
 				});
-
-				offset = end;
 			}
+
+			// Section with the same name can never appear again.
+			break;
 		}
 	}
 
@@ -719,20 +767,21 @@ fn read_tests(wasm_bytes: &[u8]) -> Result<Vec<TestEntry>> {
 
 fn apply_filters(
 	tests: &mut Vec<TestEntry>,
-	filters: &[String],
+	filter: &[String],
 	ignored_only: bool,
 	exact: bool,
 ) -> usize {
 	let initial = tests.len();
 	tests.retain(|test| {
-		let matches_ignore = !ignored_only || test.ignore;
-		let matches_filter = if filters.is_empty() {
-			true
-		} else if exact {
-			filters.contains(&test.name)
-		} else {
-			filters.iter().any(|filter| test.name.contains(filter))
-		};
+		let matches_ignore = !ignored_only || test.ignore.is_some();
+		let matches_filter = filter.is_empty()
+			|| filter.iter().any(|filter| {
+				if exact {
+					filter == &test.name
+				} else {
+					test.name.contains(filter)
+				}
+			});
 		matches_ignore && matches_filter
 	});
 	initial - tests.len()

@@ -3,6 +3,13 @@
 pub use js_sys;
 use js_sys::JsValue;
 
+/// ```rust
+/// # #[js_bindgen_test::test]
+/// # fn doctest() {
+/// let log = js_sys::JsString::from_str("hello world");
+/// web_sys::console::log(&log);
+/// # }
+/// ````
 pub mod console {
 	use super::*;
 
@@ -20,9 +27,10 @@ pub mod console {
 
 #[cfg(test)]
 mod tests {
-	use super::console;
 	use js_bindgen_test::test;
 	use js_sys::JsString;
+
+	use super::console;
 
 	#[test]
 	fn test_console_log() {
