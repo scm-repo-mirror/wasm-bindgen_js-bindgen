@@ -19,6 +19,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 anyhow = "1"
+argfile = { version = "0.2", features = ["response"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "json", "http1", "http2"] }
 cargo_metadata = "0.23"
 clap = { version = "4", features = ["derive"] }

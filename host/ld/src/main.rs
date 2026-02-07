@@ -22,7 +22,8 @@ use wasmparser::{Encoding, Parser, Payload, TypeRef};
 use crate::wasm_ld::WasmLdArguments;
 
 fn main() {
-	let args: Vec<_> = env::args_os().collect();
+	let args = argfile::expand_args_from(env::args_os(), argfile::parse_response, argfile::PREFIX)
+		.unwrap();
 	let wasm_ld_args = WasmLdArguments::new(&args[1..]);
 
 	if wasm_ld_args
