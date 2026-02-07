@@ -383,9 +383,14 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) -> Vec<u8> {
 	let mut js_output =
 		BufWriter::new(File::create(&js_output_path).expect("output JS file should be writable"));
 
+	// Create our `importObjectCreator`.
+	js_output
+		.write_all(b"export default function() {\n")
+		.unwrap();
+
 	// Create our `WebAssembly.Memory`.
 	js_output
-		.write_all(b"const memory = new WebAssembly.Memory({ ")
+		.write_all(b"\tconst memory = new WebAssembly.Memory({ ")
 		.unwrap();
 
 	if memory.memory64 {
@@ -414,64 +419,64 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) -> Vec<u8> {
 
 	// Output requested embedded JS.
 	if !found_embed.is_empty() {
-		js_output.write_all(b"const jsEmbed = {\n").unwrap();
+		js_output.write_all(b"\tconst jsEmbed = {\n").unwrap();
 
 		for (package, embeds) in found_embed {
-			writeln!(js_output, "\t{package}: {{").unwrap();
+			writeln!(js_output, "\t\t{package}: {{").unwrap();
 
 			for (name, js) in embeds {
-				write!(js_output, "\t\t\"{name}\": ").unwrap();
+				write!(js_output, "\t\t\t\"{name}\": ").unwrap();
 
 				for (position, line) in js.lines().with_position() {
 					js_output.write_all(line.as_bytes()).unwrap();
 
 					if let Position::First | Position::Middle = position {
-						js_output.write_all(b"\n\t\t").unwrap();
+						js_output.write_all(b"\n\t\t\t").unwrap();
 					}
 				}
 
 				js_output.write_all(b",\n").unwrap();
 			}
 
-			js_output.write_all(b"\t},\n").unwrap();
+			js_output.write_all(b"\t\t},\n").unwrap();
 		}
 
-		js_output.write_all(b"}\n\n").unwrap();
+		js_output.write_all(b"\t}\n\n").unwrap();
 	}
 
-	// Create our `importObject`.
+	js_output.write_all(b"\treturn {\n").unwrap();
 	js_output
-		.write_all(b"export default function() { return {\n")
+		.write_all(b"\t\tjs_bindgen: { memory },\n")
 		.unwrap();
-	js_output.write_all(b"\tjs_bindgen: { memory },\n").unwrap();
 
 	for (module, names) in found_import
 		.into_iter()
 		.filter(|(_, names)| !names.values().all(Option::is_none))
 	{
-		writeln!(js_output, "\t{module}: {{").unwrap();
+		writeln!(js_output, "\t\t{module}: {{").unwrap();
 
 		for (name, js) in names
 			.into_iter()
 			.filter_map(|(name, js)| js.map(|js| (name, js)))
 		{
-			write!(js_output, "\t\t\"{name}\": ").unwrap();
+			write!(js_output, "\t\t\t\"{name}\": ").unwrap();
 
 			for (position, line) in js.lines().with_position() {
 				js_output.write_all(line.as_bytes()).unwrap();
 
 				if let Position::First | Position::Middle = position {
-					js_output.write_all(b"\n\t\t").unwrap();
+					js_output.write_all(b"\n\t\t\t").unwrap();
 				}
 			}
 
 			js_output.write_all(b",\n").unwrap();
 		}
 
-		js_output.write_all(b"\t},\n").unwrap();
+		js_output.write_all(b"\t\t},\n").unwrap();
 	}
 
-	js_output.write_all(b"} }\n").unwrap();
+	js_output.write_all(b"\t}\n").unwrap();
+	js_output.write_all(b"}\n").unwrap();
 
 	js_output.into_inner().unwrap().sync_all().unwrap();
 
