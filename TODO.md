@@ -77,6 +77,7 @@
   - Pass an environment variable from a `build.rs` pointing to the target folder and go from there.
     This seems to have failed. No build script instruction can reach the linker on Wasm.
 - Memory-mapped file reading should lock files to make it safe.
+- Add diagnostics for traits when they are not implemented, e.g. `Input`/`Output`.
 
 [Fantoccini]: https://crates.io/crates/fantoccini
 [Thirtyfour]: https://crates.io/crates/thirtyfour
