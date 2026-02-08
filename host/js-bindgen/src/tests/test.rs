@@ -3,7 +3,7 @@ use quote::quote;
 #[test]
 fn basic() {
 	super::test(
-		crate::unsafe_embed_asm(quote! { "foo", "bar" }),
+		crate::embed_asm_internal(quote! { "foo", "bar" }),
 		quote! {
 			const _: () = {
 				const ARR_0: [u8; 7] = *b"foo\nbar";
@@ -29,7 +29,7 @@ fn basic() {
 #[test]
 fn minimum() {
 	super::test(
-		crate::unsafe_embed_asm(quote! { "" }),
+		crate::embed_asm_internal(quote! { "" }),
 		quote! {
 			const _: () = {
 				const LEN: u32 = {
@@ -52,7 +52,7 @@ fn minimum() {
 #[test]
 fn no_newline() {
 	super::test(
-		crate::unsafe_embed_asm(quote! { "foo" }),
+		crate::embed_asm_internal(quote! { "foo" }),
 		quote! {
 			const _: () = {
 				const ARR_0: [u8; 3] = *b"foo";
@@ -78,7 +78,7 @@ fn no_newline() {
 #[test]
 fn merge_strings() {
 	super::test(
-		crate::unsafe_embed_asm(quote! {
+		crate::embed_asm_internal(quote! {
 			"foo",
 			"bar",
 			"baz",
@@ -131,7 +131,7 @@ fn merge_strings() {
 #[test]
 fn merge_edge_1() {
 	super::test(
-		crate::unsafe_embed_asm(quote! {
+		crate::embed_asm_internal(quote! {
 			"",
 			#[cfg(test)]
 			"",
@@ -189,7 +189,7 @@ fn merge_edge_1() {
 #[test]
 fn merge_edge_2() {
 	super::test(
-		crate::unsafe_embed_asm(quote! {
+		crate::embed_asm_internal(quote! {
 			#[cfg(test)]
 			"",
 			#[cfg(test)]
@@ -226,7 +226,7 @@ fn merge_edge_2() {
 #[test]
 fn cfg() {
 	super::test(
-		crate::unsafe_embed_asm(quote! {
+		crate::embed_asm_internal(quote! {
 		   "test1",
 		   #[cfg(test)]
 		   "test2",
@@ -268,7 +268,7 @@ fn cfg() {
 #[test]
 fn escape() {
 	super::test(
-		crate::unsafe_embed_asm(quote! { "\n\t\"\\{{}}" }),
+		crate::embed_asm_internal(quote! { "\n\t\"\\{{}}" }),
 		quote! {
 			const _: () = {
 				const ARR_0: [u8; 6] = *b"\n\t\"\\{}";
@@ -294,7 +294,7 @@ fn escape() {
 #[test]
 fn interpolate() {
 	super::test(
-		crate::unsafe_embed_asm(quote! { "{}", interpolate "test" }),
+		crate::embed_asm_internal(quote! { "{}", interpolate "test" }),
 		quote! {
 			const _: () = {
 				const VAL_0: &str = "test";
@@ -323,7 +323,7 @@ fn interpolate() {
 #[test]
 fn interpolate_edge() {
 	super::test(
-		crate::unsafe_embed_asm(quote! {
+		crate::embed_asm_internal(quote! {
 			"{}",
 			"{}",
 			interpolate foo!(),
@@ -364,7 +364,7 @@ fn interpolate_edge() {
 #[test]
 fn import() {
 	super::test(
-		crate::import_js(quote! {
+		crate::import_js_internal(quote! {
 			name = "foo",
 			"bar", "baz",
 		}),
@@ -395,7 +395,7 @@ fn import() {
 #[test]
 fn required_embed() {
 	super::test(
-		crate::import_js(quote! {
+		crate::import_js_internal(quote! {
 			name = "foo", required_embed = "bar", "",
 		}),
 		quote! {
@@ -424,7 +424,7 @@ fn required_embed() {
 #[test]
 fn embed() {
 	super::test(
-		crate::embed_js(quote! {
+		crate::embed_js_internal(quote! {
 			name = "foo", "",
 		}),
 		quote! {

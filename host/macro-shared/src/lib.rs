@@ -1,14 +1,9 @@
 #![cfg_attr(test, allow(dead_code))]
 
-#[cfg(not(test))]
-extern crate proc_macro;
-#[cfg(test)]
-extern crate proc_macro2 as proc_macro;
-
 use std::fmt::Display;
 use std::iter::{self, Peekable};
 
-use proc_macro::{
+use proc_macro2::{
 	Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree, token_stream,
 };
 
@@ -541,8 +536,7 @@ pub fn expect_ident(
 ) -> Result<Ident, TokenStream> {
 	let i = parse_ident(stream, previous_span, expected)?;
 
-	#[cfg_attr(test, allow(clippy::cmp_owned))]
-	if i.to_string() == ident {
+	if i == ident {
 		Ok(i)
 	} else {
 		let span: SpanRange = if with_previous {

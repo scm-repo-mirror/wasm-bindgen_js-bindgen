@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use js_bindgen_macro_shared::*;
-use proc_macro::{Delimiter, Group, Ident, Span, TokenStream, TokenTree, token_stream};
+use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree, token_stream};
 
 struct TestAttributes {
 	ignore: Option<Option<String>>,
@@ -18,8 +18,13 @@ impl TestAttributes {
 }
 
 #[proc_macro_attribute]
-pub fn test(attr: TokenStream, item: TokenStream) -> TokenStream {
-	test_internal(attr, item).unwrap_or_else(|e| e)
+pub fn test(
+	attr: proc_macro::TokenStream,
+	item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+	test_internal(attr.into(), item.into())
+		.unwrap_or_else(|e| e)
+		.into()
 }
 
 fn test_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, TokenStream> {

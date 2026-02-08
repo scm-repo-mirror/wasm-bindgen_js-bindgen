@@ -1,20 +1,4 @@
 #[cfg(test)]
-extern crate proc_macro2 as proc_macro;
-#[cfg(test)]
-use shared as js_bindgen_macro_shared;
-
-// There is currently no way to execute proc-macros in non-proc-macro crates.
-// However, we need it for testing. So we somehow have to enable `proc-macro2`,
-// even in dependencies. It turns out that this is quite difficult to accomplish
-// in dependencies, e.g. via crate features. Including the crate via a module is
-// what worked for now. `rust-analyzer` doesn't seem to like `path`s outside the
-// crate though, so we added a symlink.
-//
-// See https://github.com/rust-lang/rust-analyzer/issues/3898.
-#[cfg(test)]
-#[path = "shared/lib.rs"]
-mod shared;
-#[cfg(test)]
 mod tests;
 
 use std::borrow::Cow;
@@ -24,16 +8,23 @@ use std::iter;
 use std::iter::Peekable;
 
 use js_bindgen_macro_shared::*;
-use proc_macro::{
+use proc_macro2::{
 	Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree, token_stream,
 };
 
-#[cfg_attr(not(test), proc_macro_attribute)]
-pub fn js_sys(attr: TokenStream, original_item: TokenStream) -> TokenStream {
-	js_sys_internal(attr, original_item.clone()).unwrap_or_else(|mut e| {
-		e.extend(original_item);
-		e
-	})
+#[proc_macro_attribute]
+pub fn js_sys(
+	attr: proc_macro::TokenStream,
+	original_item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+	let original_item: TokenStream = original_item.into();
+
+	js_sys_internal(attr.into(), original_item.clone())
+		.unwrap_or_else(|mut e| {
+			e.extend(original_item);
+			e
+		})
+		.into()
 }
 
 enum JsFunction {

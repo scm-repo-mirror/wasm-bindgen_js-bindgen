@@ -1,22 +1,6 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 #[cfg(test)]
-extern crate proc_macro2 as proc_macro;
-#[cfg(test)]
-use shared as js_bindgen_macro_shared;
-
-// There is currently no way to execute proc-macros in non-proc-macro crates.
-// However, we need it for testing. So we somehow have to enable `proc-macro2`,
-// even in dependencies. It turns out that this is quite difficult to accomplish
-// in dependencies, e.g. via crate features. Including the crate via a module is
-// what worked for now. `rust-analyzer` doesn't seem to like `path`s outside the
-// crate though, so we added a symlink.
-//
-// See https://github.com/rust-lang/rust-analyzer/issues/3898.
-#[cfg(test)]
-#[path = "shared/lib.rs"]
-mod shared;
-#[cfg(test)]
 mod tests;
 
 #[cfg(not(test))]
@@ -25,11 +9,13 @@ use std::iter::Peekable;
 use std::mem;
 
 use js_bindgen_macro_shared::*;
-use proc_macro::{Delimiter, Span, TokenStream, TokenTree, token_stream};
+use proc_macro2::{Delimiter, Span, TokenStream, TokenTree, token_stream};
 
-#[cfg_attr(not(test), proc_macro)]
-pub fn unsafe_embed_asm(input: TokenStream) -> TokenStream {
-	embed_asm_internal(input).unwrap_or_else(|e| e)
+#[proc_macro]
+pub fn unsafe_embed_asm(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	embed_asm_internal(input.into())
+		.unwrap_or_else(|e| e)
+		.into()
 }
 
 fn embed_asm_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
@@ -41,9 +27,9 @@ fn embed_asm_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 	Ok(output)
 }
 
-#[cfg_attr(not(test), proc_macro)]
-pub fn embed_js(input: TokenStream) -> TokenStream {
-	embed_js_internal(input).unwrap_or_else(|e| e)
+#[proc_macro]
+pub fn embed_js(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	embed_js_internal(input.into()).unwrap_or_else(|e| e).into()
 }
 
 fn embed_js_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
@@ -79,9 +65,11 @@ fn embed_js_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 	Ok(output)
 }
 
-#[cfg_attr(not(test), proc_macro)]
-pub fn import_js(input: TokenStream) -> TokenStream {
-	import_js_internal(input).unwrap_or_else(|e| e)
+#[proc_macro]
+pub fn import_js(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	import_js_internal(input.into())
+		.unwrap_or_else(|e| e)
+		.into()
 }
 
 fn import_js_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
@@ -355,8 +343,7 @@ fn expect_meta_name_value(
 ) -> Result<String, TokenStream> {
 	let (ident, string) = parse_meta_name_value(stream)?;
 
-	#[cfg_attr(test, allow(clippy::cmp_owned))]
-	if ident.to_string() != attribute {
+	if ident != attribute {
 		return Err(compile_error(
 			ident.span(),
 			format!("expected `{attribute}`"),

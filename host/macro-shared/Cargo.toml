@@ -4,7 +4,7 @@ license = { workspace = true }
 name = "js-bindgen-macro-shared"
 rust-version = { workspace = true }
 
-[dev-dependencies]
+[dependencies]
 proc-macro2 = { workspace = true }
 
 [lints]

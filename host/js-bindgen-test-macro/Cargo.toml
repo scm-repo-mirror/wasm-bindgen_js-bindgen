@@ -8,6 +8,7 @@ proc-macro = true
 
 [dependencies]
 js-bindgen-macro-shared = { workspace = true }
+proc-macro2 = { workspace = true, features = ["proc-macro"] }
 
 [lints]
 workspace = true
