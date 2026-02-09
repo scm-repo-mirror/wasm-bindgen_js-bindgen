@@ -21,6 +21,8 @@ use wasmparser::{Encoding, Parser, Payload, TypeRef};
 
 use crate::wasm_ld::WasmLdArguments;
 
+const IMPORTS_JS: &str = include_str!("js/imports.mjs");
+
 fn main() {
 	let args = argfile::expand_args_from(env::args_os(), argfile::parse_response, argfile::PREFIX)
 		.unwrap();
@@ -406,15 +408,14 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) -> Vec<u8> {
 	let mut js_output =
 		BufWriter::new(File::create(&js_output_path).expect("output JS file should be writable"));
 
-	// Create our `importObjectCreator`.
-	js_output
-		.write_all(b"export default function() {\n")
-		.unwrap();
+	let (js_memory, rest) = IMPORTS_JS.split_once("JBG_PLACEHOLDER_MEMORY").unwrap();
+	let (js_embed, rest) = rest.split_once("JBG_PLACEHOLDER_JS_EMBED").unwrap();
+	let (js_import_object, js_rest) = rest.split_once("JBG_PLACEHOLDER_IMPORT_OBJECT").unwrap();
 
-	// Create our `WebAssembly.Memory`.
-	js_output
-		.write_all(b"\tconst memory = new WebAssembly.Memory({ ")
-		.unwrap();
+	// `WebAssembly.Memory`.
+	js_output.write_all(js_memory.as_bytes()).unwrap();
+
+	js_output.write_all(b"new WebAssembly.Memory({ ").unwrap();
 
 	if memory.memory64 {
 		write!(js_output, "initial: {}n", memory.initial).unwrap();
@@ -438,69 +439,73 @@ fn post_processing(output_path: &Path, main_memory: MainMemory<'_>) -> Vec<u8> {
 		js_output.write_all(b", shared: true").unwrap();
 	}
 
-	js_output.write_all(b" })\n\n").unwrap();
+	js_output.write_all(b" })").unwrap();
 
-	// Output requested embedded JS.
-	if !found_embed.is_empty() {
-		js_output.write_all(b"\tconst jsEmbed = {\n").unwrap();
+	// Requested embedded JS.
+	js_output.write_all(js_embed.as_bytes()).unwrap();
 
-		for (package, embeds) in found_embed {
-			writeln!(js_output, "\t\t{package}: {{").unwrap();
+	js_output.write_all(b"{\n").unwrap();
 
-			for (name, js) in embeds {
-				write!(js_output, "\t\t\t\"{name}\": ").unwrap();
+	for (package, embeds) in found_embed {
+		writeln!(js_output, "\t\t\t{package}: {{").unwrap();
 
-				for (position, line) in js.lines().with_position() {
-					js_output.write_all(line.as_bytes()).unwrap();
-
-					if let Position::First | Position::Middle = position {
-						js_output.write_all(b"\n\t\t\t").unwrap();
-					}
-				}
-
-				js_output.write_all(b",\n").unwrap();
-			}
-
-			js_output.write_all(b"\t\t},\n").unwrap();
-		}
-
-		js_output.write_all(b"\t}\n\n").unwrap();
-	}
-
-	js_output.write_all(b"\treturn {\n").unwrap();
-	js_output
-		.write_all(b"\t\tjs_bindgen: { memory },\n")
-		.unwrap();
-
-	for (module, names) in found_import
-		.into_iter()
-		.filter(|(_, names)| !names.values().all(Option::is_none))
-	{
-		writeln!(js_output, "\t\t{module}: {{").unwrap();
-
-		for (name, js) in names
-			.into_iter()
-			.filter_map(|(name, js)| js.map(|js| (name, js)))
-		{
-			write!(js_output, "\t\t\t\"{name}\": ").unwrap();
+		for (name, js) in embeds {
+			write!(js_output, "\t\t\t\t\"{name}\": ").unwrap();
 
 			for (position, line) in js.lines().with_position() {
 				js_output.write_all(line.as_bytes()).unwrap();
 
 				if let Position::First | Position::Middle = position {
-					js_output.write_all(b"\n\t\t\t").unwrap();
+					js_output.write_all(b"\n\t\t\t\t").unwrap();
 				}
 			}
 
 			js_output.write_all(b",\n").unwrap();
 		}
 
-		js_output.write_all(b"\t\t},\n").unwrap();
+		js_output.write_all(b"\t\t\t},\n").unwrap();
 	}
 
-	js_output.write_all(b"\t}\n").unwrap();
-	js_output.write_all(b"}\n").unwrap();
+	js_output.write_all(b"\t\t}").unwrap();
 
+	// `importObject`
+	js_output.write_all(js_import_object.as_bytes()).unwrap();
+
+	js_output.write_all(b"{\n").unwrap();
+	js_output
+		.write_all(b"\t\t\tjs_bindgen: { memory: this.#memory },\n")
+		.unwrap();
+
+	for (module, names) in found_import
+		.into_iter()
+		.filter(|(_, names)| !names.values().all(Option::is_none))
+	{
+		writeln!(js_output, "\t\t\t{module}: {{").unwrap();
+
+		for (name, js) in names
+			.into_iter()
+			.filter_map(|(name, js)| js.map(|js| (name, js)))
+		{
+			write!(js_output, "\t\t\t\t\"{name}\": ").unwrap();
+
+			for (position, line) in js.lines().with_position() {
+				js_output.write_all(line.as_bytes()).unwrap();
+
+				if let Position::First | Position::Middle = position {
+					js_output.write_all(b"\n\t\t\t\t").unwrap();
+				}
+			}
+
+			js_output.write_all(b",\n").unwrap();
+		}
+
+		js_output.write_all(b"\t\t\t},\n").unwrap();
+	}
+
+	js_output.write_all(b"\t\t}").unwrap();
+
+	// Finish
+	js_output.write_all(js_rest.as_bytes()).unwrap();
 	js_output.into_inner().unwrap().sync_all().unwrap();
 
 	// After the linker is done, Cargo copies the final output to be the name of the

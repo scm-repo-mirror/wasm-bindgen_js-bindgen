@@ -8,6 +8,10 @@
 :; # UNIX
 :; # Lines starting with `:;` are ignored on Windows but are executed on UNIX.
 :; (
+:;   cd "$(dirname "$0")/../host/ld/src/js"
+:;   tsc --build; exit $?
+:; ) || exit $?
+:; (
 :;   cd "$(dirname "$0")/../host"
 :;   cargo +stable run -q -p js-bindgen-ld -- "$@"; exit $?
 :; ); exit $?
@@ -15,6 +19,9 @@
 :: Windows
 :: Never reached on UNIX because we execute `exit`.
 @echo off
+pushd "%~dp0..\host\ld\src\js"
+tsc --build || exit /b %ERRORLEVEL%
+popd
 pushd "%~dp0..\host"
 cargo +stable run -q -p js-bindgen-ld -- %*
 popd

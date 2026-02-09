@@ -1,1 +1,1 @@
-export default function (): WebAssembly.Imports
+../../../ld/src/js/imports.d.mts

@@ -1,5 +1,5 @@
 import testData from "./test-data.json" with { type: "json" };
-import importObjectCreator from "./imports.mjs";
+import { JsBindgen } from "./imports.mjs";
 export async function runTests(module, report) {
     let interceptFlag = false;
     const interceptStore = [];
@@ -34,13 +34,6 @@ export async function runTests(module, report) {
     let ignored = 0;
     let panicPayload;
     let panicMessage;
-    const importObject = importObjectCreator();
-    Object.assign(importObject, {
-        js_bindgen_test: {
-            set_payload: (payload) => (panicPayload = payload),
-            set_message: (message) => (panicMessage = message),
-        },
-    });
     const newLineText = { text: "\n", color: 0 /* Color.Default */ };
     const failedText = { text: "FAILED", color: 3 /* Color.Red */ };
     const okText = { text: "ok", color: 1 /* Color.Green */ };
@@ -48,7 +41,14 @@ export async function runTests(module, report) {
         interceptStore.length = 0;
         panicPayload = undefined;
         panicMessage = undefined;
-        const instance = await WebAssembly.instantiate(module, importObject);
+        const jsBindgen = new JsBindgen(module);
+        jsBindgen.extendImportObject({
+            js_bindgen_test: {
+                set_payload: (payload) => (panicPayload = payload),
+                set_message: (message) => (panicMessage = message),
+            },
+        });
+        const instance = await jsBindgen.instantiate();
         const testText = { text: `test ${test.name} ... `, color: 0 /* Color.Default */ };
         if (test.ignore) {
             ignored += 1;

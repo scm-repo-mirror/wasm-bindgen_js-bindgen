@@ -1,5 +1,5 @@
 import testData from "./test-data.json" with { type: "json" }
-import importObjectCreator from "./imports.mjs"
+import { JsBindgen } from "./imports.mts"
 
 export const enum Stream {
 	Stdout,
@@ -56,13 +56,6 @@ export async function runTests(
 	let ignored = 0
 	let panicPayload: string | undefined
 	let panicMessage: string | undefined
-	const importObject = importObjectCreator()
-	Object.assign<WebAssembly.Imports, WebAssembly.Imports>(importObject, {
-		js_bindgen_test: {
-			set_payload: (payload: string) => (panicPayload = payload),
-			set_message: (message: string) => (panicMessage = message),
-		},
-	})
 
 	const newLineText = { text: "\n", color: Color.Default }
 	const failedText = { text: "FAILED", color: Color.Red }
@@ -72,7 +65,15 @@ export async function runTests(
 		interceptStore.length = 0
 		panicPayload = undefined
 		panicMessage = undefined
-		const instance = await WebAssembly.instantiate(module, importObject)
+
+		const jsBindgen = new JsBindgen(module)
+		jsBindgen.extendImportObject({
+			js_bindgen_test: {
+				set_payload: (payload: string) => (panicPayload = payload),
+				set_message: (message: string) => (panicMessage = message),
+			},
+		})
+		const instance = await jsBindgen.instantiate()
 
 		const testText = { text: `test ${test.name} ... `, color: Color.Default }
 

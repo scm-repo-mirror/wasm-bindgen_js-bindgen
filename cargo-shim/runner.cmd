@@ -8,6 +8,10 @@
 :; # UNIX
 :; # Lines starting with `:;` are ignored on Windows but are executed on UNIX.
 :; (
+:;   cd "$(dirname "$0")/../host/ld/src/js"
+:;   tsc --build; exit $?
+:; ) || exit $?
+:; (
 :;   cd "$(dirname "$0")/../host/js-bindgen-runner/src/js"
 :;   npm install -s --prefer-offline --no-audit --no-fund || exit $?
 :;   tsc --build; exit $?
@@ -20,6 +24,9 @@
 :: Windows
 :: Never reached on UNIX because we execute `exit`.
 @echo off
+pushd "%~dp0..\host\ld\src\js"
+tsc --build || exit /b %ERRORLEVEL%
+popd
 pushd "%~dp0..\host\js-bindgen-runner\src\js"
 npm install -s --prefer-offline --no-audit --no-fund || exit /b %ERRORLEVEL%
 tsc --build || exit /b %ERRORLEVEL%

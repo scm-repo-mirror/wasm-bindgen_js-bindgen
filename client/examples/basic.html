@@ -4,12 +4,9 @@
 		<title>Basic Example</title>
 		<link rel="icon" href="data:," />
 		<script type="module">
-			import importObjectCreator from "../target/wasm32-unknown-unknown/release/examples/basic.mjs"
+			import { JsBindgen } from "../target/wasm32-unknown-unknown/release/examples/basic.mjs"
 
-			const { module, instance } = await WebAssembly.instantiateStreaming(
-				fetch("../target/wasm32-unknown-unknown/release/examples/basic.wasm"),
-				importObjectCreator()
-			)
+			const instance = await JsBindgen.instantiateStreaming()
 			instance.exports.foo()
 		</script>
 	</head>

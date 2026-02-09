@@ -20,9 +20,9 @@ impl JsString {
 			"		ignoreBOM: false,",
 			"	}})",
 			#[cfg(not(target_feature = "atomics"))]
-			"	const view = new Uint8Array(memory.buffer, ptr, len)",
+			"	const view = new Uint8Array(this.#memory.buffer, ptr, len)",
 			#[cfg(target_feature = "atomics")]
-			"	const view = new Uint8Array(memory.buffer).slice(ptr, ptr + len)",
+			"	const view = new Uint8Array(this.#memory.buffer).slice(ptr, ptr + len)",
 			"",
 			"	return decoder.decode(view)",
 			"}}",
