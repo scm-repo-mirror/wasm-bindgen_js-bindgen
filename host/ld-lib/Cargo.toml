@@ -2,7 +2,7 @@
 edition = { workspace = true }
 license = { workspace = true }
 name = "js-bindgen-ld-lib"
-rust-version = { workspace = true }
+rust-version = "1.87"
 
 [dependencies]
 hashbrown = { workspace = true }

@@ -10,6 +10,7 @@ hashbrown = { workspace = true }
 js-bindgen-ld-lib = { workspace = true }
 js-bindgen-ld-shared = { workspace = true }
 js-bindgen-shared = { workspace = true }
+wasm-encoder = { workspace = true }
 wasmparser = { workspace = true }
 
 [lints]

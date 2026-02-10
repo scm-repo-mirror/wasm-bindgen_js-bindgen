@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::str;
 
 use hashbrown::{HashMap, HashSet};
 use itertools::{Itertools, Position};
@@ -11,17 +12,47 @@ use wasmparser::{Encoding, Parser, Payload, TypeRef};
 
 const IMPORTS_JS: &str = include_str!("js/imports.mjs");
 
-pub struct MainMemory<'a> {
-	pub module: &'a str,
-	pub name: &'a str,
-}
-
 /// This removes our custom sections and generates the JS import file.
-pub fn post_processing(
-	wasm_input: &[u8],
-	mut js_output: impl Write,
-	main_memory: MainMemory<'_>,
-) -> Vec<u8> {
+pub fn post_processing(wasm_input: &[u8], mut js_output: impl Write) -> Vec<u8> {
+	// Find main memory first.
+	let main_memory = Parser::new(0)
+		.parse_all(wasm_input)
+		.find_map(|payload| {
+			let payload = payload.expect("object file should be valid Wasm");
+
+			if let Payload::CustomSection(c) = payload
+				&& c.name() == "js_bindgen.main_memory"
+			{
+				let mut data = c.data();
+				let module_len = u16::from_le_bytes(
+					data.split_off(..2)
+						.expect("invalid main memory encoding")
+						.try_into()
+						.unwrap(),
+				);
+				let module = data
+					.split_off(..module_len.into())
+					.and_then(|b| str::from_utf8(b).ok())
+					.expect("invalid main memory encoding");
+				let name_len = u16::from_le_bytes(
+					data.split_off(..2)
+						.expect("invalid main memory encoding")
+						.try_into()
+						.unwrap(),
+				);
+				let name = data
+					.split_off(..name_len.into())
+					.and_then(|b| str::from_utf8(b).ok())
+					.expect("invalid main memory encoding");
+				assert!(data.is_empty(), "invalid main memory encoding");
+
+				Some((module, name))
+			} else {
+				None
+			}
+		})
+		.expect("no main memory found");
+
 	let mut wasm_output = Vec::new();
 
 	let mut found_import: HashMap<&str, HashMap<&str, Option<&str>>> = HashMap::new();
@@ -68,8 +99,8 @@ pub fn post_processing(
 
 					// The main memory has its own dedicated output handling.
 					if let TypeRef::Memory(m) = import.ty
-						&& import.module == main_memory.module
-						&& import.name == main_memory.name
+						&& import.module == main_memory.0
+						&& import.name == main_memory.1
 					{
 						memory = Some(m);
 						continue;
@@ -100,6 +131,8 @@ pub fn post_processing(
 			}
 			// Don't write back our assembly sections.
 			Payload::CustomSection(c) if c.name() == "js_bindgen.assembly" => (),
+			// Don't write back our main memory section.
+			Payload::CustomSection(c) if c.name() == "js_bindgen.main_memory" => (),
 			// Extract all JS imports.
 			Payload::CustomSection(c) if c.name().starts_with("js_bindgen.import.") => {
 				let stripped = c.name().strip_prefix("js_bindgen.import.").unwrap();
