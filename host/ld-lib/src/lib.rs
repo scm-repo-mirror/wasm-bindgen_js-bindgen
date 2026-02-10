@@ -5,8 +5,10 @@ use anyhow::{Context, Result, bail, ensure};
 use hashbrown::{HashMap, HashSet};
 use itertools::{Itertools, Position};
 use js_bindgen_ld_shared::{JsBindgenEmbedSectionParser, JsBindgenImportSectionParser};
-use wasm_encoder::{EntityType, ImportSection, Module, RawSection, Section};
-use wasmparser::{CustomSectionReader, Encoding, Import, Parser, Payload, TypeRef};
+use wasm_encoder::{
+	EntityType, ImportSection, Module, ProducersField, ProducersSection, RawSection, Section,
+};
+use wasmparser::{CustomSectionReader, Encoding, Import, KnownCustom, Parser, Payload, TypeRef};
 
 const IMPORTS_JS: &str = include_str!("js/imports.mjs");
 
@@ -126,6 +128,31 @@ pub fn post_processing(wasm_input: &[u8], mut js_output: impl Write) -> Result<V
 				})?;
 
 				js_store.add_js_embed(module, name, c)?;
+			}
+			Payload::CustomSection(c) if c.name() == "producers" => {
+				let KnownCustom::Producers(c) = c.as_known() else {
+					bail!("unexpected producer section encoding")
+				};
+
+				let mut section = ProducersSection::new();
+
+				for f in c {
+					let f = f?;
+					let mut field = ProducersField::new();
+
+					for value in f.values {
+						let value = value?;
+						field.value(value.name, value.version);
+					}
+
+					if f.name == "processed-by" {
+						field.value("js-bindgen", env!("CARGO_PKG_VERSION"));
+					}
+
+					section.field(f.name, &field);
+				}
+
+				section.append_to(&mut wasm_output);
 			}
 			Payload::CodeSectionEntry(_) | Payload::End(_) => (),
 			payload => {

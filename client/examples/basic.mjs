@@ -12,7 +12,6 @@ export class JsBindgen {
         this.#module = module;
         this.#jsEmbed = {
 			js_sys: {
-				'externref.table': new WebAssembly.Table({ initial: 1, element: 'externref' }),
 				'string.decode': (ptr, len) => {
 					const decoder = new TextDecoder('utf-8', {
 						fatal: false,
@@ -28,11 +27,11 @@ export class JsBindgen {
 			js_bindgen: { memory: this.#memory },
 			web_sys: {
 				'console.log': globalThis.console.log,
-				'console.log2': globalThis.console.log,
 				'console.log0': globalThis.console.log,
+				'console.log2': globalThis.console.log,
 			},
 			js_sys: {
-				'externref.table': this.#jsEmbed['js_sys']['externref.table'],
+				'externref.table': new WebAssembly.Table({ initial: 1, element: 'externref' }),
 				'string_decode': (array, len) => {
 					array >>>= 0
 					len >>>= 0

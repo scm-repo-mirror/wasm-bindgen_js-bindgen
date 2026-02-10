@@ -499,6 +499,7 @@
   (@producers
     (language "Rust" "")
     (processed-by "rustc" "1.93.0 (254b59607 2026-01-19)")
+    (processed-by "js-bindgen" "0.0.0")
   )
   (@custom "target_features" (after data) "\08+\0bbulk-memory+\0fbulk-memory-opt+\16call-indirect-overlong+\0amultivalue+\0fmutable-globals+\13nontrapping-fptoint+\0freference-types+\08sign-ext")
 )
