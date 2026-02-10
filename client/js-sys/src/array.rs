@@ -12,6 +12,16 @@ pub struct JsArray<T = JsValue> {
 	_type: PhantomData<T>,
 }
 
+impl<T> JsArray<T> {
+	#[must_use]
+	pub fn as_any(self) -> JsArray {
+		JsArray {
+			value: self.value,
+			_type: PhantomData,
+		}
+	}
+}
+
 impl From<&[u32]> for JsArray<u32> {
 	fn from(value: &[u32]) -> Self {
 		js_bindgen::embed_js!(
@@ -50,6 +60,7 @@ impl<T> Deref for JsArray<T> {
 	}
 }
 
+// SAFETY: TODO
 unsafe impl<T> Input for &JsArray<T> {
 	const IMPORT_FUNC: &'static str = ".functype js_sys.externref.get (i32) -> (externref)";
 	const IMPORT_TYPE: &'static str = "externref";
@@ -63,6 +74,7 @@ unsafe impl<T> Input for &JsArray<T> {
 	}
 }
 
+// SAFETY: TODO
 unsafe impl<T> Output for JsArray<T> {
 	const IMPORT_FUNC: &str = ".functype js_sys.externref.insert (externref) -> (i32)";
 	const IMPORT_TYPE: &str = "externref";

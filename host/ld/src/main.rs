@@ -128,7 +128,7 @@ fn process_object(
 		if let Payload::CustomSection(c) = payload
 			&& c.name() == "js_bindgen.assembly"
 		{
-			for assembly in JsBindgenAssemblySectionParser::new(c) {
+			for assembly in JsBindgenAssemblySectionParser::new(&c) {
 				file_counter += 1;
 				let asm_path = archive_path.with_added_extension(format!("asm.{file_counter}.o"));
 

@@ -119,7 +119,7 @@ pub fn post_processing(wasm_input: &[u8], mut js_output: impl Write) -> Result<V
 					format!("found incorrectly formatted JS import custom section name: {stripped}")
 				})?;
 
-				js_store.add_js_import(module, name, c)?;
+				js_store.add_js_import(module, name, &c)?;
 			}
 			// Extract all JS embeds.
 			Payload::CustomSection(c) if c.name().starts_with("js_bindgen.embed.") => {
@@ -128,7 +128,7 @@ pub fn post_processing(wasm_input: &[u8], mut js_output: impl Write) -> Result<V
 					format!("found incorrectly formatted JS import custom section name: {stripped}",)
 				})?;
 
-				js_store.add_js_embed(module, name, c)?;
+				js_store.add_js_embed(module, name, &c)?;
 			}
 			Payload::CustomSection(c) if c.name() == "producers" => {
 				let KnownCustom::Producers(c) = c.as_known() else {
@@ -326,7 +326,7 @@ impl<'a> JsStore<'a> {
 		&mut self,
 		module: &'a str,
 		name: &'a str,
-		custom_section: CustomSectionReader<'a>,
+		custom_section: &CustomSectionReader<'a>,
 	) -> Result<()> {
 		let mut parser = JsBindgenImportSectionParser::new(custom_section);
 		let import = parser
@@ -345,8 +345,7 @@ impl<'a> JsStore<'a> {
 		if self
 			.expected_import
 			.get_mut(module)
-			.map(|names| names.remove(name))
-			.unwrap_or_default()
+			.is_some_and(|names| names.remove(name))
 		{
 			self.import
 				.entry(module)
@@ -378,7 +377,7 @@ impl<'a> JsStore<'a> {
 		&mut self,
 		module: &'a str,
 		name: &'a str,
-		custom_section: CustomSectionReader<'a>,
+		custom_section: &CustomSectionReader<'a>,
 	) -> Result<()> {
 		let mut parser = JsBindgenEmbedSectionParser::new(custom_section);
 		let embed = parser
@@ -397,8 +396,7 @@ impl<'a> JsStore<'a> {
 		if self
 			.expected_embed
 			.get_mut(module)
-			.map(|names| names.remove(name))
-			.unwrap_or_default()
+			.is_some_and(|names| names.remove(name))
 		{
 			self.embed
 				.entry(module)

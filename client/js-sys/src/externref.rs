@@ -12,9 +12,11 @@ macro_rules! thread_local {
 
 pub(crate) struct LocalKey<T>(T);
 
+// SAFETY: Multi-threading is not possible without `atomics`.
 #[cfg(not(target_feature = "atomics"))]
 unsafe impl<T> Send for LocalKey<T> {}
 
+// SAFETY: Multi-threading is not possible without `atomics`.
 #[cfg(not(target_feature = "atomics"))]
 unsafe impl<T> Sync for LocalKey<T> {}
 
@@ -89,13 +91,14 @@ pub(crate) struct Slab(Vec<i32>);
 
 impl Slab {
 	const fn new() -> Self {
-		Slab(Vec::new())
+		Self(Vec::new())
 	}
 
 	fn next(&mut self) -> i32 {
 		if let Some(slot) = self.0.pop() {
 			slot
 		} else {
+			// SAFETY: Implementation is safe.
 			match unsafe { grow(1) } {
 				-1 => panic("`externref` table allocation failure"),
 				slot => slot,
@@ -107,6 +110,7 @@ impl Slab {
 		self.0.try_reserve(1).expect("failure to grow memory");
 
 		self.0.push(index);
+		// SAFETY: Implementation is safe.
 		unsafe { remove(index) }
 	}
 }

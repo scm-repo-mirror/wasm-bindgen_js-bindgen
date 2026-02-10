@@ -14,6 +14,7 @@ use proc_macro2::TokenStream;
 use wasmparser::{Parser, Payload};
 
 #[track_caller]
+#[expect(clippy::needless_pass_by_value, reason = "test")]
 fn test(
 	attr: TokenStream,
 	input: TokenStream,
@@ -31,7 +32,7 @@ fn test(
 	similar_asserts::assert_eq!(expected, output);
 
 	let dir = tempfile::tempdir().unwrap();
-	let result = inner(dir.path(), &format!("#[js_sys({})]\n{}", attr, input));
+	let result = inner(dir.path(), &format!("#[js_sys({attr})]\n{input}"));
 
 	let (assembly_output, js_import_output) = result.unwrap();
 
@@ -40,11 +41,11 @@ fn test(
 	let js_import = js_import.into();
 	match (js_import, js_import_output) {
 		(Some(js_import), Some(js_import_output)) => {
-			similar_asserts::assert_eq!(js_import, js_import_output)
+			similar_asserts::assert_eq!(js_import, js_import_output);
 		}
 		(None, None) => (),
 		(js_import, js_import_output) => {
-			similar_asserts::assert_eq!(js_import, js_import_output.as_deref())
+			similar_asserts::assert_eq!(js_import, js_import_output.as_deref());
 		}
 	}
 }
@@ -164,7 +165,7 @@ fn inner(tmp: &Path, source: &str) -> Result<(String, Option<String>)> {
 
 						match payload {
 							Payload::CustomSection(c) if c.name() == "js_bindgen.assembly" => {
-								let assembly = JsBindgenAssemblySectionParser::new(c)
+								let assembly = JsBindgenAssemblySectionParser::new(&c)
 									.exactly_one()
 									.map_err(|asms| {
 										anyhow::anyhow!(
@@ -186,7 +187,7 @@ fn inner(tmp: &Path, source: &str) -> Result<(String, Option<String>)> {
 							Payload::CustomSection(c)
 								if c.name().starts_with("js_bindgen.import.test_crate.") =>
 							{
-								let import = JsBindgenImportSectionParser::new(c)
+								let import = JsBindgenImportSectionParser::new(&c)
 									.exactly_one()
 									.map_err(|imports| {
 										anyhow::anyhow!(

@@ -37,8 +37,8 @@ impl WebDriver {
 			Location::Local { path, args } => {
 				// Wait for the WebDriver to come online and bind its port before we try to
 				// connect to it.
-				let start = Instant::now();
 				const MAX: Duration = Duration::from_secs(5);
+				let start = Instant::now();
 
 				let (driver_addr, child) = 'outer: loop {
 					// Get a random open port to allow test runners to run in parallel.
@@ -52,10 +52,10 @@ impl WebDriver {
 					let mut child = ChildWrapper::new(child);
 
 					loop {
-						let limit = time::sleep(MAX - start.elapsed());
+						let limit = time::sleep(MAX.saturating_sub(start.elapsed()));
 
 						tokio::select! {
-							_ = limit => {
+							() = limit => {
 								child.output_error().await;
 								bail!("failed to bind WebDriver port in timeout duration");
 							},
@@ -210,7 +210,7 @@ impl WebDriver {
 						// See https://stackoverflow.com/questions/50642308/.
 						Value::String("disable-dev-shm-usage".to_string()),
 						Value::String("no-sandbox".to_string()),
-					])
+					]);
 			}
 			WebDriverKind::Edge => {
 				cap.entry("ms:edgeOptions".to_string())
@@ -226,7 +226,7 @@ impl WebDriver {
 						// See https://stackoverflow.com/questions/50642308/.
 						Value::String("disable-dev-shm-usage".to_string()),
 						Value::String("no-sandbox".to_string()),
-					])
+					]);
 			}
 			WebDriverKind::Gecko => cap
 				.entry("moz:firefoxOptions".to_string())
@@ -321,7 +321,7 @@ impl ChildWrapper {
 			async move {
 				let mut output = Vec::new();
 				tokio::select! {
-					_ = flag.as_ref() => (),
+					() = flag.as_ref() => (),
 					_ = tokio::io::copy(&mut stdout, &mut output) => (),
 				}
 				let _ = stdout_tx.send(output);
@@ -335,7 +335,7 @@ impl ChildWrapper {
 			async move {
 				let mut output = Vec::new();
 				tokio::select! {
-					_ = flag.as_ref() => (),
+					() = flag.as_ref() => (),
 					_ = tokio::io::copy(&mut stderr, &mut output) => (),
 				}
 				let _ = stderr_tx.send(output);

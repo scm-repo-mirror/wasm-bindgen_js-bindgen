@@ -168,13 +168,13 @@ impl HttpServer {
 					router = router.route(
 						"/worker.mjs",
 						get(async || response("application/javascript", BROWSER_JS)),
-					)
+					);
 				}
 				Some(WorkerKind::Service) => {
 					router = router.route(
 						"/worker.mjs",
 						get(async || response("application/javascript", BROWSER_SERVICE_JS)),
-					)
+					);
 				}
 				None => (),
 			}
@@ -224,7 +224,7 @@ impl HttpServer {
 								.signals
 								.success
 								.store(status.to_repr(), Ordering::SeqCst);
-							state.signals.shutdown.signal()
+							state.signals.shutdown.signal();
 						},
 					),
 				);
@@ -242,13 +242,13 @@ impl HttpServer {
 							},
 						)
 					}),
-				)
+				);
 			}
 
 			router = router.route(
 				"/shared-server.mjs",
 				get(async || response("application/javascript", SHARED_SERVER_JS)),
-			)
+			);
 		}
 
 		router.with_state(state)
@@ -256,7 +256,7 @@ impl HttpServer {
 
 	async fn bind_address(address: Option<SocketAddr>) -> Result<TcpListener> {
 		let default_addr =
-			address.unwrap_or_else(|| SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), 8000));
+			address.unwrap_or_else(|| SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 8000));
 		match TcpListener::bind(default_addr).await {
 			Ok(listener) => Ok(listener),
 			Err(err) if matches!(err.kind(), ErrorKind::AddrInUse) && address.is_none() => {

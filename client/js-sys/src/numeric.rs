@@ -1,5 +1,6 @@
 use crate::hazard::Input;
 
+// SAFETY: Implementation.
 unsafe impl Input for u32 {
 	const IMPORT_TYPE: &str = "i32";
 	const TYPE: &str = "i32";
@@ -12,6 +13,7 @@ unsafe impl Input for u32 {
 	}
 }
 
+// SAFETY: Implementation.
 unsafe impl Input for usize {
 	#[cfg(target_arch = "wasm32")]
 	const IMPORT_TYPE: &str = "i32";
@@ -31,6 +33,7 @@ unsafe impl Input for usize {
 	}
 }
 
+// SAFETY: Implementation.
 unsafe impl Input for f64 {
 	const IMPORT_TYPE: &str = "f64";
 	const TYPE: &str = "f64";
@@ -42,6 +45,7 @@ unsafe impl Input for f64 {
 	}
 }
 
+// SAFETY: Implementation.
 unsafe impl<T> Input for *const T {
 	#[cfg(target_arch = "wasm32")]
 	const IMPORT_TYPE: &str = "i32";

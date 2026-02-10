@@ -7,3 +7,6 @@ rust-version = { workspace = true }
 [dependencies]
 js-bindgen = { workspace = true }
 js-sys-macro = { workspace = true }
+
+[lints]
+workspace = true

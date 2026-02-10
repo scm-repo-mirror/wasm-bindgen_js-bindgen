@@ -17,7 +17,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{env, fs};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use proc_macro2::Span;
 use quote::quote;
 use serde_json::Value;
@@ -38,10 +38,18 @@ fn main() -> Result<()> {
 				.and_then(|def| def.get("def"))
 				.and_then(|s| s.as_str())
 		{
-			// We don't want to handle those.
-			if kind == "KIND_INPUT" || kind == "KIND_UNKNOWN" {
-				continue;
-			}
+			let kind = match kind {
+				"KIND_COMMAJOINED" => "CommaJoined",
+				"KIND_FLAG" => "Flag",
+				"KIND_JOINED" => "Joined",
+				"KIND_JOINED_OR_SEPARATE" => "JoinedOrSeparate",
+				"KIND_SEPARATE" => "Separate",
+				// We don't want to handle those.
+				"KIND_INPUT" | "KIND_UNKNOWN" => {
+					continue;
+				}
+				kind => bail!("unrecognized `OptionKind`: `{kind}`"),
+			};
 
 			args.push((name, kind));
 		}
@@ -56,9 +64,9 @@ fn main() -> Result<()> {
 		.map(|(_, flag)| Ident::new(flag, Span::call_site()));
 
 	let output = quote! {
-		const OPT_KIND: [(&[u8], OptKind); #length] = [
+		const OPT_KIND: [(&str, OptKind); #length] = [
 			// Relevant `rust-ld` arguments.
-			("flavor", OptKind::KIND_SEPARATE),
+			("flavor", OptKind::Separate),
 			// `wasm-ld` arguments.
 			#((#arg_name, OptKind::#arg_flag)),*
 		];

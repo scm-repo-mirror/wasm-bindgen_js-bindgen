@@ -46,7 +46,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 
 		if attr.peek().is_none() {
 			return Err(compile_error(punct.span(), "expected `<attribute> = ...`"));
-		};
+		}
 
 		match ident.to_string().as_str() {
 			"js_sys" => {
@@ -78,7 +78,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 					"expected `js_sys` or `namespace`",
 				));
 			}
-		};
+		}
 
 		if attr.peek().is_some() {
 			expect_punct(&mut attr, ',', ident.span(), "`,` after attribute", false)?;
@@ -146,9 +146,9 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 								attribute.span(),
 								"multiple `js_sys` attributes are not supported",
 							));
-						} else {
-							js_sys = true;
 						}
+
+						js_sys = true;
 
 						let meta = expect_group(
 							&mut inner,
@@ -442,23 +442,22 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			Punct::new('!', Spacing::Alone).into(),
 			Group::new(
 				Delimiter::Parenthesis,
-				TokenStream::from_iter(
-					strings
-						.flat_map(|string| {
-							[
-								TokenTree::from(Literal::string(&string)),
-								Punct::new(',', Spacing::Alone).into(),
-							]
-						})
-						.chain(in_import_ty_fmt)
-						.chain(out_import_ty_fmt)
-						.chain(in_import_func_fmt)
-						.chain(out_import_func_fmt)
-						.chain(in_type_fmt)
-						.chain(out_type_fmt)
-						.chain(in_conv_fmt)
-						.chain(out_conv_fmt),
-				),
+				strings
+					.flat_map(|string| {
+						[
+							TokenTree::from(Literal::string(&string)),
+							Punct::new(',', Spacing::Alone).into(),
+						]
+					})
+					.chain(in_import_ty_fmt)
+					.chain(out_import_ty_fmt)
+					.chain(in_import_func_fmt)
+					.chain(out_import_func_fmt)
+					.chain(in_type_fmt)
+					.chain(out_type_fmt)
+					.chain(in_conv_fmt)
+					.chain(out_conv_fmt)
+					.collect::<TokenStream>(),
 			)
 			.into(),
 			Punct::new(';', Spacing::Alone).into(),
@@ -555,34 +554,33 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 				Punct::new('!', Spacing::Alone).into(),
 				Group::new(
 					Delimiter::Parenthesis,
-					TokenStream::from_iter(
-						[
-							TokenTree::from(Ident::new("name", name.span())),
-							Punct::new('=', Spacing::Alone).into(),
-							Literal::string(&namespace_import_name).into(),
-							Punct::new(',', Spacing::Alone).into(),
-						]
-						.into_iter()
-						.chain(
-							js_function_attr
-								.as_ref()
-								.into_iter()
-								.filter_map(|f| match f {
-									JsFunction::Embed(js_name) => Some(vec![
-										Ident::new("required_embed", name.span()).into(),
-										Punct::new('=', Spacing::Alone).into(),
-										Literal::string(js_name).into(),
-										Punct::new(',', Spacing::Alone).into(),
-									]),
-									JsFunction::Import => {
-										Some(vec![Ident::new("no_import", name.span()).into()])
-									}
-									JsFunction::Global(_) => None,
-								})
-								.flatten(),
-						)
-						.chain(js_function),
-					),
+					[
+						TokenTree::from(Ident::new("name", name.span())),
+						Punct::new('=', Spacing::Alone).into(),
+						Literal::string(&namespace_import_name).into(),
+						Punct::new(',', Spacing::Alone).into(),
+					]
+					.into_iter()
+					.chain(
+						js_function_attr
+							.as_ref()
+							.into_iter()
+							.filter_map(|f| match f {
+								JsFunction::Embed(js_name) => Some(vec![
+									Ident::new("required_embed", name.span()).into(),
+									Punct::new('=', Spacing::Alone).into(),
+									Literal::string(js_name).into(),
+									Punct::new(',', Spacing::Alone).into(),
+								]),
+								JsFunction::Import => {
+									Some(vec![Ident::new("no_import", name.span()).into()])
+								}
+								JsFunction::Global(_) => None,
+							})
+							.flatten(),
+					)
+					.chain(js_function)
+					.collect(),
 				)
 				.into(),
 				Punct::new(';', Spacing::Alone).into(),
@@ -615,26 +613,25 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			Literal::string("C").into(),
 			Group::new(
 				Delimiter::Brace,
-				TokenStream::from_iter(
-					[
-						TokenTree::from(Punct::new('#', Spacing::Alone)),
-						Group::new(
-							Delimiter::Bracket,
-							TokenStream::from_iter([
-								TokenTree::from(Ident::new("link_name", name.span())),
-								Punct::new('=', Spacing::Alone).into(),
-								Literal::string(&extern_name).into(),
-							]),
-						)
-						.into(),
-						r#fn.clone().into(),
-						name.clone().into(),
-						Group::new(Delimiter::Parenthesis, rust_parms.collect()).into(),
-					]
-					.into_iter()
-					.chain(rust_ty)
-					.chain(iter::once(Punct::new(';', Spacing::Alone).into())),
-				),
+				[
+					TokenTree::from(Punct::new('#', Spacing::Alone)),
+					Group::new(
+						Delimiter::Bracket,
+						TokenStream::from_iter([
+							TokenTree::from(Ident::new("link_name", name.span())),
+							Punct::new('=', Spacing::Alone).into(),
+							Literal::string(&extern_name).into(),
+						]),
+					)
+					.into(),
+					r#fn.clone().into(),
+					name.clone().into(),
+					Group::new(Delimiter::Parenthesis, rust_parms.collect()).into(),
+				]
+				.into_iter()
+				.chain(rust_ty)
+				.chain(iter::once(Punct::new(';', Spacing::Alone).into()))
+				.collect(),
 			)
 			.into(),
 		];
@@ -643,7 +640,7 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 			js_sys_hazard(ty, &js_sys_path, "Input", "into_raw", name.span()).chain([
 				Group::new(
 					Delimiter::Parenthesis,
-					TokenStream::from_iter(iter::once(TokenTree::from(name.clone()))),
+					iter::once(TokenTree::from(name.clone())).collect(),
 				)
 				.into(),
 				Punct::new(',', Spacing::Alone).into(),
@@ -698,7 +695,11 @@ fn js_sys_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, 
 		);
 		output.extend(iter::once(TokenTree::from(Group::new(
 			Delimiter::Brace,
-			TokenStream::from_iter(assembly.chain(import_js).chain(import).chain(call)),
+			assembly
+				.chain(import_js)
+				.chain(import)
+				.chain(call)
+				.collect(),
 		))));
 	}
 

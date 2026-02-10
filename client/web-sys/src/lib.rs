@@ -1,7 +1,6 @@
 #![no_std]
 
 pub use js_sys;
-use js_sys::JsValue;
 
 /// ```rust
 /// # #[js_bindgen_test::test]
@@ -11,7 +10,7 @@ use js_sys::JsValue;
 /// # }
 /// ````
 pub mod console {
-	use super::*;
+	use js_sys::JsValue;
 
 	#[js_sys::js_sys(namespace = "console")]
 	extern "C" {

@@ -79,7 +79,6 @@ fn import_js_internal(input: TokenStream) -> Result<TokenStream, TokenStream> {
 	let import_name = expect_meta_name_value(&mut input, "name")?;
 
 	let attr = if let Some(TokenTree::Ident(ident)) = input.peek() {
-		#[cfg_attr(test, allow(clippy::cmp_owned))]
 		let ident = ident.to_string();
 
 		if ident == "required_embed" {
@@ -209,13 +208,10 @@ fn parse_string_arguments(
 
 	if strings.is_empty() {
 		return Err(compile_error(
-			stream
-				.peek()
-				.map(TokenTree::span)
-				.unwrap_or_else(Span::mixed_site),
+			stream.peek().map_or_else(Span::mixed_site, TokenTree::span),
 			"requires at least a string argument",
 		));
-	};
+	}
 
 	let mut current_string = String::new();
 
@@ -236,60 +232,58 @@ fn parse_string_arguments(
 				'{' => match chars.next() {
 					// Escaped `{`.
 					Some('{') => current_string.push('{'),
-					Some('}') => match chars.peek() {
-						Some('}') => {
+					Some('}') => {
+						if let Some('}') = chars.peek() {
 							return Err(compile_error(
 								previous_span,
 								"no corresponding closing bracers found",
 							));
 						}
-						_ => {
-							if !current_string.is_empty() {
+						if !current_string.is_empty() {
+							arguments.push(Argument {
+								cfg: cfg.clone(),
+								kind: ArgumentKind::Bytes(
+									mem::take(&mut current_string).into_bytes(),
+								),
+							});
+						}
+
+						match stream.peek() {
+							Some(_) => {
+								previous_span = expect_ident(
+									&mut stream,
+									"interpolate",
+									previous_span,
+									"`interpolate`",
+									false,
+								)?
+								.span();
 								arguments.push(Argument {
 									cfg: cfg.clone(),
-									kind: ArgumentKind::Bytes(
-										mem::take(&mut current_string).into_bytes(),
+									kind: ArgumentKind::Interpolate(
+										parse_ty_or_value(stream, previous_span, "a value")?.1,
 									),
 								});
-							}
 
-							match stream.peek() {
-								Some(_) => {
-									previous_span = expect_ident(
+								if stream.peek().is_some() {
+									let punct = expect_punct(
 										&mut stream,
-										"interpolate",
+										',',
 										previous_span,
-										"`interpolate`",
+										"a `,` between formatting parameters",
 										false,
-									)?
-									.span();
-									arguments.push(Argument {
-										cfg: cfg.clone(),
-										kind: ArgumentKind::Interpolate(
-											parse_ty_or_value(stream, previous_span, "a value")?.1,
-										),
-									});
-
-									if stream.peek().is_some() {
-										let punct = expect_punct(
-											&mut stream,
-											',',
-											previous_span,
-											"a `,` between formatting parameters",
-											false,
-										)?;
-										previous_span = punct.span();
-									}
+									)?;
+									previous_span = punct.span();
 								}
-								None => {
-									return Err(compile_error(
-										previous_span,
-										"expected an argument for `{}`",
-									));
-								}
+							}
+							None => {
+								return Err(compile_error(
+									previous_span,
+									"expected an argument for `{}`",
+								));
 							}
 						}
-					},
+					}
 					_ => {
 						return Err(compile_error(
 							previous_span,

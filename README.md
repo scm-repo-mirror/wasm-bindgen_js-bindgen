@@ -6,7 +6,7 @@
   - Another pass on namespacing
 - More Primitive types:
   - Expand `JsString`
-  - `JsArray`
+  - Expand `JsArray`
   - `JsNumber`
   - `BigInt`
 - Basic runner

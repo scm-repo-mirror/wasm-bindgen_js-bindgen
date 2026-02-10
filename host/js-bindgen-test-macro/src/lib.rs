@@ -1,18 +1,27 @@
 use std::iter::Peekable;
+use std::mem;
 
 use js_bindgen_macro_shared::*;
 use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree, token_stream};
 
 struct TestAttributes {
-	ignore: Option<Option<String>>,
-	should_panic: Option<Option<String>>,
+	ignore: TestAttributeValue,
+	should_panic: TestAttributeValue,
+}
+
+#[derive(Default)]
+enum TestAttributeValue {
+	#[default]
+	None,
+	Present,
+	WithText(String),
 }
 
 impl TestAttributes {
 	fn new() -> Self {
 		Self {
-			ignore: None,
-			should_panic: None,
+			ignore: TestAttributeValue::None,
+			should_panic: TestAttributeValue::None,
 		}
 	}
 }
@@ -42,8 +51,8 @@ fn test_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, To
 	let mut output = TokenStream::new();
 	output.extend(item);
 
-	let mut attr = option_option_string(&attrs.ignore);
-	attr.append(&mut option_option_string(&attrs.should_panic));
+	let mut attr = attrs.ignore.encode();
+	attr.append(&mut attrs.should_panic.encode());
 	let data = [
 		Argument {
 			cfg: None,
@@ -80,21 +89,41 @@ fn test_internal(attr: TokenStream, item: TokenStream) -> Result<TokenStream, To
 	Ok(output)
 }
 
-fn option_option_string(option: &Option<Option<String>>) -> Vec<u8> {
-	match option {
-		Some(s) => {
-			if let Some(s) = s {
+impl TestAttributeValue {
+	fn replace(&mut self, other: Option<String>) -> Self {
+		let old = mem::take(self);
+
+		*self = if let Some(s) = other {
+			Self::WithText(s)
+		} else {
+			Self::Present
+		};
+
+		old
+	}
+
+	fn is_some(&self) -> bool {
+		match self {
+			Self::None => false,
+			Self::Present | Self::WithText(_) => true,
+		}
+	}
+
+	fn encode(self) -> Vec<u8> {
+		match self {
+			Self::WithText(s) => {
 				let len = u16::try_from(s.len()).unwrap().to_le_bytes();
-				[2].iter()
-					.chain(&len)
-					.chain(s.as_bytes())
-					.copied()
-					.collect::<Vec<_>>()
-			} else {
+				let mut data = Vec::with_capacity(1 + len.len() + s.len());
+				data.push(2);
+				data.extend_from_slice(&len);
+				data.append(&mut s.into_bytes());
+				data
+			}
+			Self::Present => {
 				vec![1]
 			}
+			Self::None => vec![0],
 		}
-		None => vec![0],
 	}
 }
 
@@ -238,9 +267,8 @@ fn parse_should_panic_reason(
 		if group.delimiter() != Delimiter::Parenthesis {
 			return Err(compile_error(span, "unexpected tokens"));
 		}
-		let group = match stream.next() {
-			Some(TokenTree::Group(group)) => group,
-			_ => return Err(compile_error(span, "unexpected tokens")),
+		let Some(TokenTree::Group(group)) = stream.next() else {
+			return Err(compile_error(span, "unexpected tokens"));
 		};
 		let mut inner = group.stream().into_iter().peekable();
 		let Some(TokenTree::Ident(ident)) = inner.next() else {

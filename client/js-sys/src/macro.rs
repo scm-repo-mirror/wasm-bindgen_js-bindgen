@@ -1,3 +1,4 @@
+#[must_use]
 pub const fn select<const L: usize>(
 	a: &'static str,
 	b: &'static str,

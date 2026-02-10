@@ -4,19 +4,18 @@ use hashbrown::HashMap;
 
 include!("opt.rs");
 
-#[allow(non_camel_case_types)]
 #[derive(Clone, Copy)]
 enum OptKind {
 	/// E.g. `--extra-features=a,b,c`.
-	KIND_COMMAJOINED,
+	CommaJoined,
 	/// E.g. `--gc-sections`.
-	KIND_FLAG,
+	Flag,
 	/// E.g. `--export=xx`.
-	KIND_JOINED,
+	Joined,
 	// E.g. `-ofoo.wasm` or `-o foo.wasm`.
-	KIND_JOINED_OR_SEPARATE,
+	JoinedOrSeparate,
 	// E.g. `--export xx`.
-	KIND_SEPARATE,
+	Separate,
 }
 
 pub(crate) struct WasmLdArguments<'a> {
@@ -50,22 +49,18 @@ impl WasmLdArguments<'_> {
 			};
 
 			// Find the `OptKind` and its longest corresponding prefix.
-			let Some((kind, prefix, remain)) = (0..=stripped.len())
-				.rev()
-				.filter_map(|end| {
-					let (prefix, remain) = stripped.as_encoded_bytes().split_at(end);
-					let prefix = str::from_utf8(prefix).ok()?;
-					let kind = option_table.get(prefix)?;
-					// SAFETY:
-					// - `remain` comes from `stripped`, which originated from
-					//   `OsStr::as_encoded_bytes`.
-					// - We only proceed when having split off a valid argument from `option_table`,
-					//   which are UTF-8 and therefore `remain` is a valid `OsStr`.
-					let remain = unsafe { OsStr::from_encoded_bytes_unchecked(remain) };
-					Some((kind, prefix, remain))
-				})
-				.next()
-			else {
+			let Some((kind, prefix, remain)) = (0..=stripped.len()).rev().find_map(|end| {
+				let (prefix, remain) = stripped.as_encoded_bytes().split_at(end);
+				let prefix = str::from_utf8(prefix).ok()?;
+				let kind = option_table.get(prefix)?;
+				// SAFETY:
+				// - `remain` comes from `stripped`, which originated from
+				//   `OsStr::as_encoded_bytes`.
+				// - We only proceed when having split off a valid argument from `option_table`,
+				//   which are UTF-8 and therefore `remain` is a valid `OsStr`.
+				let remain = unsafe { OsStr::from_encoded_bytes_unchecked(remain) };
+				Some((kind, prefix, remain))
+			}) else {
 				eprintln!("encountered unknown `wasm-ld` option: `{}`", arg.display());
 				continue;
 			};
@@ -76,12 +71,10 @@ impl WasmLdArguments<'_> {
 					.as_os_str()
 			};
 			let value = match kind {
-				OptKind::KIND_FLAG => None,
-				OptKind::KIND_SEPARATE => Some(next()),
-				OptKind::KIND_COMMAJOINED | OptKind::KIND_JOINED => Some(remain),
-				OptKind::KIND_JOINED_OR_SEPARATE => {
-					Some(if remain.is_empty() { next() } else { remain })
-				}
+				OptKind::Flag => None,
+				OptKind::Separate => Some(next()),
+				OptKind::CommaJoined | OptKind::Joined => Some(remain),
+				OptKind::JoinedOrSeparate => Some(if remain.is_empty() { next() } else { remain }),
 			};
 
 			if let Some(value) = value {

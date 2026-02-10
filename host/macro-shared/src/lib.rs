@@ -1,5 +1,3 @@
-#![cfg_attr(test, allow(dead_code))]
-
 use std::fmt::Display;
 use std::iter::{self, Peekable};
 
@@ -34,6 +32,7 @@ pub enum ArgumentKind {
 /// 	};
 /// };
 /// ```
+#[must_use]
 pub fn custom_section(name: &str, data: &[Argument]) -> TokenStream {
 	fn group(delimiter: Delimiter, inner: impl IntoIterator<Item = TokenTree>) -> TokenTree {
 		Group::new(delimiter, inner.into_iter().collect()).into()
@@ -392,7 +391,7 @@ pub fn parse_ty_or_value(
 		match tok {
 			TokenTree::Ident(_) | TokenTree::Group(_) => {
 				span.end = tok.span();
-				ty.push(stream.next().unwrap())
+				ty.push(stream.next().unwrap());
 			}
 			TokenTree::Punct(p) if p.as_char() == '<' => {
 				ty.extend(parse_angular(&mut stream, previous_span)?);
@@ -400,7 +399,7 @@ pub fn parse_ty_or_value(
 			}
 			TokenTree::Punct(p) if [':', '.', '!'].contains(&p.as_char()) => {
 				span.end = p.span();
-				ty.push(stream.next().unwrap())
+				ty.push(stream.next().unwrap());
 			}
 			_ => break,
 		}
@@ -419,7 +418,7 @@ fn parse_angular(
 ) -> Result<TokenStream, TokenStream> {
 	let opening = expect_punct(&mut stream, '<', previous_span.into(), "`<`", false)?;
 	let mut span = SpanRange::from(opening.span());
-	let mut angular = TokenStream::from_iter(iter::once(TokenTree::from(opening)));
+	let mut angular: TokenStream = iter::once(TokenTree::from(opening)).collect();
 
 	let mut opened = 1;
 
@@ -616,8 +615,8 @@ impl From<Span> for SpanRange {
 pub fn compile_error(span: impl Into<SpanRange>, error: impl Display) -> TokenStream {
 	let span = span.into();
 
-	TokenStream::from_iter(
-		path(["core", "compile_error"], span.start).chain([
+	path(["core", "compile_error"], span.start)
+		.chain([
 			punct('!', Spacing::Alone, span.start).into(),
 			group(
 				Delimiter::Parenthesis,
@@ -626,8 +625,8 @@ pub fn compile_error(span: impl Into<SpanRange>, error: impl Display) -> TokenSt
 			)
 			.into(),
 			punct(';', Spacing::Alone, span.end).into(),
-		]),
-	)
+		])
+		.collect::<TokenStream>()
 }
 
 fn punct(ch: char, spacing: Spacing, span: Span) -> Punct {

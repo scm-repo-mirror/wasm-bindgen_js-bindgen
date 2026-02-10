@@ -7,7 +7,11 @@ pub(crate) struct PtrLength(
 
 impl PtrLength {
 	pub(crate) fn new<T>(
-		#[cfg_attr(target_arch = "wasm32", expect(unused_variables))] ptr: *const T,
+		#[cfg_attr(
+			target_arch = "wasm32",
+			expect(unused_variables, reason = "32-bit is unchecked")
+		)]
+		ptr: *const T,
 		len: usize,
 	) -> Self {
 		#[cfg(target_arch = "wasm64")]
@@ -23,6 +27,7 @@ impl PtrLength {
 	}
 }
 
+// SAFETY: Delegated to already implemented types.
 unsafe impl Input for PtrLength {
 	const IMPORT_TYPE: &str = Self::Type::IMPORT_TYPE;
 	const TYPE: &str = Self::Type::TYPE;

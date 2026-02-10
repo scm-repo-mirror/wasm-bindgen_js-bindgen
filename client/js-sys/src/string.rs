@@ -10,7 +10,11 @@ use crate::util::PtrLength;
 pub struct JsString(JsValue);
 
 impl JsString {
-	#[allow(clippy::should_implement_trait)]
+	#[expect(
+		clippy::should_implement_trait,
+		reason = "currently no stable way to unwrap `Infallible`"
+	)]
+	#[must_use]
 	pub fn from_str(string: &str) -> Self {
 		js_bindgen::embed_js!(
 			name = "string.decode",
@@ -49,6 +53,7 @@ impl Deref for JsString {
 	}
 }
 
+// SAFETY: TODO
 unsafe impl Input for &JsString {
 	const IMPORT_FUNC: &'static str = ".functype js_sys.externref.get (i32) -> (externref)";
 	const IMPORT_TYPE: &'static str = "externref";
@@ -62,6 +67,7 @@ unsafe impl Input for &JsString {
 	}
 }
 
+// SAFETY: TODO
 unsafe impl Output for JsString {
 	const IMPORT_FUNC: &str = ".functype js_sys.externref.insert (externref) -> (i32)";
 	const IMPORT_TYPE: &str = "externref";

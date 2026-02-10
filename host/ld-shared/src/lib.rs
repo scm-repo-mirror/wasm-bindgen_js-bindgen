@@ -158,12 +158,13 @@ pub fn ld_input_parser<E>(
 pub struct JsBindgenAssemblySectionParser<'cs>(CustomSectionParser<'cs>);
 
 impl<'cs> JsBindgenAssemblySectionParser<'cs> {
-	pub fn new(custom_section: CustomSectionReader<'cs>) -> Self {
+	#[must_use]
+	pub fn new(custom_section: &CustomSectionReader<'cs>) -> Self {
 		Self(CustomSectionParser::new(custom_section))
 	}
 }
 
-impl<'cs> Debug for JsBindgenAssemblySectionParser<'cs> {
+impl Debug for JsBindgenAssemblySectionParser<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		let rest: Vec<_> = self.clone().collect();
 
@@ -200,19 +201,21 @@ pub enum JsBindgenEmbedSection<'cs> {
 }
 
 impl<'cs> JsBindgenEmbedSectionParser<'cs> {
-	pub fn new(custom_section: CustomSectionReader<'cs>) -> Self {
+	#[must_use]
+	pub fn new(custom_section: &CustomSectionReader<'cs>) -> Self {
 		Self(CustomSectionParser::new(custom_section))
 	}
 }
 
 impl<'cs> JsBindgenEmbedSection<'cs> {
+	#[must_use]
 	pub fn js(self) -> &'cs str {
 		match self {
-			JsBindgenEmbedSection::Plain(js) => js,
-			JsBindgenEmbedSection::WithEmbed { js, .. } => js,
+			JsBindgenEmbedSection::Plain(js) | JsBindgenEmbedSection::WithEmbed { js, .. } => js,
 		}
 	}
 
+	#[must_use]
 	pub fn embed(self) -> Option<&'cs str> {
 		match self {
 			JsBindgenEmbedSection::Plain(_) => None,
@@ -221,7 +224,7 @@ impl<'cs> JsBindgenEmbedSection<'cs> {
 	}
 }
 
-impl<'cs> Debug for JsBindgenEmbedSectionParser<'cs> {
+impl Debug for JsBindgenEmbedSectionParser<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		let rest: Vec<_> = self.clone().collect();
 
@@ -271,20 +274,24 @@ pub enum JsBindgenImportSection<'cs> {
 }
 
 impl<'cs> JsBindgenImportSectionParser<'cs> {
-	pub fn new(custom_section: CustomSectionReader<'cs>) -> Self {
+	#[must_use]
+	pub fn new(custom_section: &CustomSectionReader<'cs>) -> Self {
 		Self(CustomSectionParser::new(custom_section))
 	}
 }
 
 impl<'cs> JsBindgenImportSection<'cs> {
+	#[must_use]
 	pub fn js(self) -> Option<&'cs str> {
 		match self {
-			JsBindgenImportSection::Plain(js) => Some(js),
-			JsBindgenImportSection::WithEmbed { js, .. } => Some(js),
+			JsBindgenImportSection::Plain(js) | JsBindgenImportSection::WithEmbed { js, .. } => {
+				Some(js)
+			}
 			JsBindgenImportSection::NoImport => None,
 		}
 	}
 
+	#[must_use]
 	pub fn embed(self) -> Option<&'cs str> {
 		match self {
 			JsBindgenImportSection::Plain(_) | JsBindgenImportSection::NoImport => None,
@@ -293,7 +300,7 @@ impl<'cs> JsBindgenImportSection<'cs> {
 	}
 }
 
-impl<'cs> Debug for JsBindgenImportSectionParser<'cs> {
+impl Debug for JsBindgenImportSectionParser<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		let rest: Vec<_> = self.clone().collect();
 
@@ -375,7 +382,7 @@ struct CustomSectionParser<'cs> {
 }
 
 impl<'cs> CustomSectionParser<'cs> {
-	fn new(custom_section: CustomSectionReader<'cs>) -> Self {
+	fn new(custom_section: &CustomSectionReader<'cs>) -> Self {
 		Self {
 			name: custom_section.name(),
 			data: custom_section.data(),

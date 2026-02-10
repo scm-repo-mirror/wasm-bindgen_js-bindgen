@@ -82,7 +82,7 @@ fn main() -> Result<()> {
 	let wasm_path = PathBuf::from(&file);
 	let wasm_bytes = ReadFile::new(&wasm_path)
 		.with_context(|| format!("failed to read Wasm file: {}", wasm_path.display()))?;
-	let args = TestArgs::new(cli)?;
+	let args = TestArgs::new(cli);
 
 	let (tests, filtered_count) = TestEntry::read(
 		&wasm_bytes,
@@ -110,11 +110,12 @@ fn main() -> Result<()> {
 	}
 
 	if tests.is_empty() {
+		const GREEN: &str = "\u{001b}[32m";
+		const RESET: &str = "\u{001b}[0m";
+
 		println!();
 		println!("running 0 tests");
 		println!();
-		const GREEN: &str = "\u{001b}[32m";
-		const RESET: &str = "\u{001b}[0m";
 		println!(
 			"test result: {GREEN}ok{RESET}. 0 passed; 0 failed; 0 ignored; 0 measured; \
 			 {filtered_count} filtered out; finished in 0.00s"
@@ -159,17 +160,15 @@ struct TestArgs {
 }
 
 impl TestArgs {
-	fn new(cli: Cli) -> Result<Self> {
-		let output = Self {
+	fn new(cli: Cli) -> Self {
+		Self {
 			list_only: cli.list,
 			no_capture: cli.no_capture,
 			filter: cli.filter,
 			list_format: cli.format,
 			ignored_only: cli.ignored,
 			exact: cli.exact,
-		};
-
-		Ok(output)
+		}
 	}
 }
 
@@ -186,10 +185,14 @@ struct TestData {
 struct TestEntry {
 	name: String,
 	import_name: String,
-	#[serde(serialize_with = "option_option_string")]
-	ignore: Option<Option<String>>,
-	#[serde(serialize_with = "option_option_string")]
-	should_panic: Option<Option<String>>,
+	ignore: TestAttr,
+	should_panic: TestAttr,
+}
+
+enum TestAttr {
+	None,
+	Present,
+	WithText(String),
 }
 
 impl TestEntry {
@@ -199,35 +202,6 @@ impl TestEntry {
 		ignored_only: bool,
 		exact: bool,
 	) -> Result<(Vec<Self>, usize)> {
-		/// - None: `[0]`
-		/// - Some(None): `[1]`
-		/// - Some(Some(s)): `[2][len(s)][s]`
-		fn option_option_string(data: &mut &[u8]) -> Result<Option<Option<String>>> {
-			let value = match data
-				.split_off_first()
-				.context("invalid test flag encoding")?
-			{
-				0 => None,
-				1 => Some(None),
-				2 => {
-					let len = u16::from_le_bytes(
-						data.split_off(..2)
-							.context("invalid test flag length encoding")?
-							.try_into()?,
-					)
-					.into();
-					let s = str::from_utf8(
-						data.split_off(..len)
-							.context("invalid test flag reason encoding")?,
-					)?
-					.to_string();
-					Some(Some(s))
-				}
-				_ => bail!("mismatch flag value"),
-			};
-			Ok(value)
-		}
-
 		let mut tests = Vec::new();
 		let mut total = 0;
 
@@ -245,8 +219,8 @@ impl TestEntry {
 					) as usize;
 					let mut data = data.split_off(..len).context("invalid test encoding")?;
 
-					let ignore = option_option_string(&mut data)?;
-					let should_panic = option_option_string(&mut data)?;
+					let ignore = TestAttr::parse(&mut data)?;
+					let should_panic = TestAttr::parse(&mut data)?;
 					let import_name = str::from_utf8(data)?;
 					let name = import_name
 						.split_once("::")
@@ -287,6 +261,57 @@ impl TestEntry {
 	}
 }
 
+impl Serialize for TestAttr {
+	fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		match self {
+			Self::None => serializer.serialize_unit(),
+			Self::Present => serializer.serialize_bool(true),
+			Self::WithText(text) => serializer.serialize_str(text),
+		}
+	}
+}
+
+impl TestAttr {
+	/// - None:        `[0]`
+	/// - Present:     `[1]`
+	/// - WithText(s): `[2][len(s)][s]`
+	fn parse(data: &mut &[u8]) -> Result<Self> {
+		let value = match data
+			.split_off_first()
+			.context("invalid test flag encoding")?
+		{
+			0 => Self::None,
+			1 => Self::Present,
+			2 => {
+				let len = u16::from_le_bytes(
+					data.split_off(..2)
+						.context("invalid test flag length encoding")?
+						.try_into()?,
+				)
+				.into();
+				let s = str::from_utf8(
+					data.split_off(..len)
+						.context("invalid test flag reason encoding")?,
+				)?
+				.to_string();
+				Self::WithText(s)
+			}
+			_ => bail!("mismatch flag value"),
+		};
+		Ok(value)
+	}
+
+	fn is_some(&self) -> bool {
+		match self {
+			Self::None => false,
+			Self::Present | Self::WithText(_) => true,
+		}
+	}
+}
+
 #[derive(Clone, Copy, Debug)]
 enum RunnerConfig {
 	NodeJs,
@@ -297,11 +322,11 @@ enum RunnerConfig {
 
 #[derive(Clone, Copy, Debug)]
 enum WorkerKind {
-	/// https://developer.mozilla.org/en-US/docs/Web/API/Worker
+	/// <https://developer.mozilla.org/en-US/docs/Web/API/Worker>
 	Dedicated,
-	/// https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker
+	/// <https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker>
 	Shared,
-	/// https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorker
+	/// <https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorker>
 	Service,
 }
 
@@ -358,7 +383,7 @@ impl RunnerConfig {
 			eprintln!(
 				"Only browser and server runners support worker types; `JBG_TEST_WORKER` is \
 				 ignored",
-			)
+			);
 		}
 
 		Ok(config)
@@ -483,16 +508,5 @@ impl Runner {
 			self.test_data_json,
 		)
 		.await
-	}
-}
-
-fn option_option_string<S>(value: &Option<Option<String>>, serializer: S) -> Result<S::Ok, S::Error>
-where
-	S: Serializer,
-{
-	match value {
-		None => serializer.serialize_unit(),
-		Some(None) => serializer.serialize_bool(true),
-		Some(Some(reason)) => serializer.serialize_str(reason),
 	}
 }
